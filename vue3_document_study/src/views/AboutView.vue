@@ -16,7 +16,61 @@
     <br />
     <listView />
     <br />
-    <MyComponent />
+    <MyComponent
+      title="标题"
+      :greetingMessage="greetingMessage"
+      @increase="increase"
+      @deIncrease="deIncrease"
+    />
+    <br />
+    <ModelComponent v-model="inputValue" />
+    <div>{{ inputValue }}</div>
+    <br />
+    <CustomeModelView v-model:title="customeInputValue" />
+    <div>{{ customeInputValue }}</div>
+    <br />
+    <UserName v-model:firstName="firstName" v-model:lastName="lastName" />
+    <div>{{ firstName }} --------- {{ lastName }}</div>
+    <br />
+    <MyButton class="large" @click="onParentClick" />
+    <br />
+    <br />
+    <FancyButton>
+      <div>我是外部传递的内容</div>
+      <div>内容二</div>
+      <div>{{ message }}</div>
+    </FancyButton>
+    <br />
+    <br />
+    <BaseLayout>
+      <template v-slot:[dynamicSlotName]>
+        <h1>Here might be a page title</h1>
+      </template>
+      <template v-slot:content>
+        <p>A paragraph for the main content.</p>
+        <p>And another one.</p>
+      </template>
+      <template v-slot:footer>
+        <p>Here's some contact info</p>
+      </template>
+    </BaseLayout>
+    <br />
+    <br />
+    <ScopeComponent>
+      <template v-slot="slotProps">
+        <div>{{ slotProps.text }}</div>
+        <div>{{ slotProps.count }}</div>
+      </template>
+      <template v-slot:main="slotProps">
+        <div>{{ slotProps }}</div>
+      </template>
+    </ScopeComponent>
+    <br />
+    <br />
+    <CompositionView></CompositionView>
+    <br />
+    <br />
+    <CustomDirective />
   </div>
 </template>
 
@@ -26,7 +80,23 @@ import computedView from "./components/ComputedView.vue";
 import classBindView from "./components/ClassBindView.vue";
 import conditionRenderView from "./components/ConditionRenderView.vue";
 import listView from "./components/ListView.vue";
+import ModelComponent from "./components/ModelComponent.vue";
+import CustomeModelView from "./components/CustomeModeView.vue";
+import UserName from "./components/UserName.vue";
+import MyButton from "./components/MyButton.vue";
+import FancyButton from "./myComponents/FancyButton.vue";
+import BaseLayout from "./myComponents/BasseLayout.vue";
+import ScopeComponent from "./myComponents/ScopeComponent.vue";
+import CompositionView from "./ReusableComponents/compositionView.vue";
+import CustomDirective from "./ReusableComponents/CustomDirective.vue";
 
+const dynamicSlotName = ref("header");
+const message = ref("FancyButton message");
+const inputValue = ref("input value");
+const customeInputValue = ref("自定义内容");
+const firstName = ref("尤");
+const lastName = ref("玉溪");
+const greetingMessage = ref("我是欢迎语");
 const raw = { count: 0 };
 const state = reactive(raw);
 const counter = ref(0);
@@ -63,6 +133,18 @@ function equalMethod() {
   console.log(state === state1);
   console.log(state === state2);
 }
+
+function increase(e) {
+  alert(e);
+}
+
+function deIncrease(e) {
+  alert(e);
+}
+
+function onParentClick() {
+  console.log("onParentClick");
+}
 </script>
 
 <style>
@@ -75,5 +157,9 @@ function equalMethod() {
 
 .classBindComponent {
   overflow: hidden;
+}
+
+.large {
+  font-family: "Courier New", Courier, monospace;
 }
 </style>
