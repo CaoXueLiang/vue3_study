@@ -16,12 +16,12 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { shallowRef, ref } from "vue";
 import ComponentA from "./components/ComponentA.vue";
 import ComponentB from "./components/ComponentB.vue";
 import ComponentD from "./components/ComponentD.vue";
 
-const current = ref(ComponentA);
+const current = shallowRef(ComponentA);
 const includes = ref(["ComponentA", "ComponentB"]);
 console.log("current", current);
 </script>
