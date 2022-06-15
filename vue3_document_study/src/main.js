@@ -10,4 +10,6 @@ app.component("MyComponent", MyComponent);
 app.use(createPinia());
 app.use(router);
 
+console.log("app.config.globalProperties", app.config.globalProperties);
+
 app.mount("#app");

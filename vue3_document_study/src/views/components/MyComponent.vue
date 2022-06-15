@@ -16,6 +16,7 @@ defineProps({
 });
 const emits = defineEmits(["deIncrease"]);
 const message = ref("我是子组件内容");
+console.log("ref--message", message);
 
 function deIncreaseMethod() {
   emits("deIncrease", "deIncrease -- message");
