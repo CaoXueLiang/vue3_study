@@ -2,6 +2,7 @@
   <div>
     <button @click="add">add</button>
     <div>{{ count }}</div>
+    <div>{{ store.getters.doubleNumber }}</div>
   </div>
 </template>
 
