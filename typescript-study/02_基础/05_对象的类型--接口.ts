@@ -46,3 +46,25 @@ interface Person3 {
 
 // 4.只读属性
 // 有时候我们希望对象中的一些字段只能在创建的时候被赋值，那么可以用 readonly 定义只读属性。
+interface Person4 {
+  readonly id?: number;
+  name: string;
+  age?: number;
+  [propName: string]: any;
+}
+
+let tom4: Person4 = {
+  id: 9524,
+  name: "Tom",
+  gender: "male",
+};
+tom4.id = 111;
+
+// ❗注意：只读的约束存在于第一次给对象赋值的时候，而不是第一次给只读属性赋值的时候。
+let tom5: Person4 = {
+  name: "Tom",
+  gender: "male",
+};
+tom5.id = 9999;
+
+export {};
