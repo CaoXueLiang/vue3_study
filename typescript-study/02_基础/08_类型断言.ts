@@ -57,4 +57,29 @@ function toBoolean(something: any): boolean {
 }
 console.log(toBoolean(1));
 
+// 四. 类型断言 vs 泛型
+// 使用类型断言
+function getCacheData(key: string): any {
+  return (window as any).cache[key];
+}
+interface Cat {
+  name: string;
+  run(): void;
+}
+const tom4 = getCacheData("tom") as Cat;
+tom4.run();
+
+// 我们还有第三种方式可以解决这个问题，那就是泛型：
+// 通过给 getCacheData 函数添加一个  泛型<T>,我们可以更加规范的实现对 getCacheData 返回值的约束，
+// 这也同时去除掉了代码中的any,是最优的一个解决方案
+function getCacheData1<T>(key: string): T {
+  return (window as any).cache[key];
+}
+interface Cat4 {
+  name: string;
+  run(): void;
+}
+const tom5 = getCacheData1<Cat4>("tom");
+tom5.run();
+
 export {};

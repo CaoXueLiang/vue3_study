@@ -1,8 +1,8 @@
 // 1.类型加方括号表示法；`类型[]`
 let fibNuber: number[] = [1, 2, 3, 4, 5];
 // 数组中不允许出现其他类型
-let fibNumber1: number[] = [1, "2", 3, 4, 5];
-fibNumber1.push("10");
+// let fibNumber1: number[] = [1, "2", 3, 4, 5];
+// fibNumber1.push("10");
 
 // 2.数组泛型
 // 我们也可以使用数组泛型（Array Generic）Array<elemType>来表示数组：
@@ -20,9 +20,9 @@ let fibNumber3: NumberArray = ["xiaoming", "lining", "tom"];
 // 类数组不是数组类型，比如 arguments
 // arguments 实际上是一个类数组，不能用普通的数组的方式来描述，而应该用接口
 // 事实上我们常用的类数组都有自己的接口定义，比如：IArguments,NodeList,HTMLCollection等
-function sum() {
-  let args: number[] = arguments;
-}
+// function sum() {
+//   let args: number[] = arguments;
+// }
 
 function sum1() {
   let ags: {

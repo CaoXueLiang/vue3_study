@@ -32,7 +32,7 @@ let paramUndefined: undefined = undefined;
 
 // 与void的区别是，undefined 和 null 是所有类型的子类型。
 // 也就是说 undefined 类型的变量，可以赋值给number类型的变量
-let num: number = undefined;
-let str: string = null;
-let tmp: boolean = undefined;
+// let num: number = undefined;
+// let str: string = null;
+// let tmp: boolean = undefined;
 let noVoid: void = undefined;

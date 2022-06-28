@@ -40,7 +40,7 @@ let tom2: Person2 = {
 // 一个接口中只能定义一个任意属性。如果接口中有多个类型的属性，则可以在任意属性中使用联合类型。
 interface Person3 {
   name: string;
-  age?: number;
+  // age?: number;
   [propName: string]: string | number;
 }
 
@@ -58,13 +58,13 @@ let tom4: Person4 = {
   name: "Tom",
   gender: "male",
 };
-tom4.id = 111;
+// tom4.id = 111;
 
 // ❗注意：只读的约束存在于第一次给对象赋值的时候，而不是第一次给只读属性赋值的时候。
 let tom5: Person4 = {
   name: "Tom",
   gender: "male",
 };
-tom5.id = 9999;
+// tom5.id = 9999;
 
 export {};

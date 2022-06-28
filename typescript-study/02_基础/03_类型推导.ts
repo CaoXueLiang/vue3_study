@@ -3,7 +3,7 @@
 
 // 以下代码虽然没有指点类型，但是会在编译的时候报错：
 let favoriteNumber = "seven";
-favoriteNumber = 7;
+// favoriteNumber = 7;
 
 // 事实上，它等价于：
 
