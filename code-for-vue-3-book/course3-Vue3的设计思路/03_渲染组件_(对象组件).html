@@ -47,7 +47,7 @@
   }
 
   function mountComponent(vnode, container) {
-    // 调用组件函数，获取组件要渲染的内容（虚拟DOM）
+    // 调用组件函数，获取组件要渲染的内容(虚拟DOM),调用对象的render方法获取
     const subTree = vnode.tag.render();
     // 递归调用 Render 渲染 subtree
     Render(subTree, container);

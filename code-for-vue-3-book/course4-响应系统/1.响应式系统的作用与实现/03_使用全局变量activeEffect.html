@@ -1,0 +1,52 @@
+<body>
+  <div id="app"></div>
+  <button onclick="changeText()">修改text</button>
+  <button onclick="changeAge()">修改age</button>
+</body>
+
+<script>
+  // 存储副作用函数的桶
+  const bucket = new Set();
+  const obj = {
+    text: "hello world",
+    age: 20,
+  };
+  const proxyObj = new Proxy(obj, {
+    get(target, key) {
+      // 将副作用函数 effect 添加到桶中
+      bucket.add(activeEffect);
+      return target[key];
+    },
+    set(target, key, newValue) {
+      target[key] = newValue;
+      // 把副作用函数从桶中取出并执行
+      bucket.forEach((fn) => fn());
+    },
+  });
+
+  // 用一个全局变量 activeEffect 存储当前激活的 effect 函数
+  let activeEffect;
+  function effect(fn) {
+    // 当调用 effect 注册副作用函数时，将副作用函数赋值给 activeEffect
+    activeEffect = fn;
+    // 执行副作用函数
+    fn();
+  }
+
+  effect(() => {
+    console.log("effect run");
+    document.getElementById("app").innerText = proxyObj.text;
+  });
+
+  function changeText() {
+    proxyObj.text = "hello Vue3";
+  }
+  function changeAge() {
+    proxyObj.age = 100;
+  }
+
+  /**
+   * 上述写法有一个问题：
+   * 就是改变 age 的值也会触发副作用函数。正常情况应该是只有改变 text的值时才会触发副作用函数
+   */
+</script>

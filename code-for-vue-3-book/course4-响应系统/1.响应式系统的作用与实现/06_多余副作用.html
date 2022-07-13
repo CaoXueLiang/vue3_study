@@ -1,0 +1,97 @@
+<body>
+  <div id="app"></div>
+</body>
+
+<script>
+  // 存储副作用函数的桶
+  const bucket = new WeakMap();
+  const obj = {
+    text: "hello world",
+    ok: true,
+  };
+  const proxyObj = new Proxy(obj, {
+    get(target, key) {
+      // 追踪
+      track(target, key);
+      return target[key];
+    },
+    set(target, key, newValue) {
+      target[key] = newValue;
+      // 触发
+      trigger(target, key);
+    },
+  });
+
+  function track(target, key) {
+    let depsMap = bucket.get(target);
+    if (!depsMap) {
+      bucket.set(target, (depsMap = new Map()));
+    }
+    let deps = depsMap.get(key);
+    if (!deps) {
+      depsMap.set(key, (deps = new Set()));
+    }
+    deps.add(activeEffect);
+  }
+
+  function trigger(target, key) {
+    const depsMap = bucket.get(target);
+    if (!depsMap) {
+      return;
+    }
+    const effects = depsMap.get(key);
+    effects && effects.forEach((fn) => fn());
+  }
+
+  // 用一个全局变量 activeEffect 存储当前激活的 effect 函数
+  let activeEffect;
+  function effect(fn) {
+    // const effectFn = () => {
+    //   cleanup(effectFn);
+    //   activeEffect = effectFn;
+    //   fn();
+    // };
+    // // activeEffect.deps 用来存储所有与该副作用函数相关的依赖集合
+    // effectFn.deps = [];
+    // // 执行副作用函数
+    // effectFn();
+
+    activeEffect = fn;
+    fn();
+  }
+
+  function cleanup(effectFn) {
+    for (let index = 0; index < effectFn.deps.length; index++) {
+      const deps = effectFn.deps[index];
+      deps.delete(effectFn);
+    }
+    effectFn.deps.length = 0;
+  }
+
+  effect(() => {
+    console.log("effect run");
+    const element = document.getElementById("app");
+    element.innerText = proxyObj.ok ? proxyObj.text : "not";
+  });
+
+  console.log("bucker", bucket);
+
+  setTimeout(() => {
+    proxyObj.ok = false;
+    setTimeout(() => {
+      proxyObj.text = "hello vue3";
+    }, 1000);
+  }, 1000);
+
+  /**
+   *❗多余的副作用：
+   * 默认情况下会执行3次副作用函数 "effect run"
+   * 思考：其实执行2次副作用函数就行，因为当 proxy.ok === false 时，
+   * 再改变proxy.text的值，不管proxy.text最终的值是多少，element.innerText 显示的都是 not
+   *
+   * 解决方法：
+   * activeEffect.deps 用来存储所有与该副作用函数相关的依赖集合
+   * 在执行副作用函数时，先将其从依赖集合中删除
+   *
+   */
+</script>

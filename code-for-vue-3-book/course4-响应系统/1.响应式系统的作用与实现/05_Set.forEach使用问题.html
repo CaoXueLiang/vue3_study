@@ -1,0 +1,13 @@
+<body></body>
+<script>
+  /*
+   * ❗存在问题：Set通过forEach遍历时，删除和添加同一个元素会造成死循环
+   */
+
+  const newSet = new Set([1]);
+  newSet.forEach((item) => {
+    newSet.delete(1);
+    newSet.add(1);
+    console.log(999);
+  });
+</script>
