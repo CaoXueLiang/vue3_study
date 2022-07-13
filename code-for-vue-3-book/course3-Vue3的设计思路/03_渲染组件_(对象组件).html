@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body></body>
+</html>
+
+<script type="module">
+  import { objComponentVnode } from "./js/objComponent.js";
+
+  function Render(vnode, container) {
+    if (typeof vnode.tag === "string") {
+      // 说明 vnode 描述的是标签元素
+      mountElement(vnode, container);
+    } else if (typeof vnode.tag === "object") {
+      // 说明 vnode 描述的是组件
+      mountComponent(vnode, container);
+    }
+  }
+
+  function mountElement(vnode, container) {
+    const el = document.createElement(vnode.tag);
+    // 遍历vnode.props，将属性、事件添加到DOM中
+    for (const key in vnode.props) {
+      if (/^on/.test(key)) {
+        const eventKey = key.substr(2).toLowerCase();
+        el.addEventListener(eventKey, vnode.props[key]);
+      } else if (key === "style") {
+        processStyle(vnode.props[key], el);
+      } else {
+        el.setAttribute(key, vnode.props[key]);
+      }
+    }
+    // 处理children
+    if (typeof vnode.children === "string") {
+      const text = document.createTextNode(vnode.children);
+      el.appendChild(text);
+    } else if (vnode.children) {
+      vnode.children.forEach((item) => Render(item, el));
+    }
+    // 将元素挂载到父级元素上
+    container.appendChild(el);
+  }
+
+  function mountComponent(vnode, container) {
+    // 调用组件函数，获取组件要渲染的内容（虚拟DOM）
+    const subTree = vnode.tag.render();
+    // 递归调用 Render 渲染 subtree
+    Render(subTree, container);
+  }
+
+  function processStyle(values, el) {
+    const result = [];
+    for (const objKey in values) {
+      result.push(`${objKey}:${values[objKey]}`);
+    }
+    el.setAttribute("style", result.join(";"));
+  }
+
+  Render(objComponentVnode, document.body);
+</script>

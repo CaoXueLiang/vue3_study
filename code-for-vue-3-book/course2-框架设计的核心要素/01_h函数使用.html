@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
+//直接在html中引入Vue3
+<script src="https://unpkg.com/vue@next"></script>
+<script>
+  // h函数的使用，h函数用于创建虚拟DOM（vnode）
+  const { createApp, h } = Vue;
+  createApp({
+    render: () =>
+      h("div", { class: "container" }, [
+        h(
+          "div",
+          {
+            title: "我是div的title",
+            id: "divID",
+            style: { color: "red", fontSize: "20px" },
+          },
+          "我是div标签"
+        ),
+        h(
+          "span",
+          {
+            style: { color: "orange" },
+          },
+          "我是span标签"
+        ),
+      ]),
+  }).mount("#app");
+</script>
+
+<style>
+  .container {
+    width: 300px;
+    height: 400px;
+    background: #f8f8f8;
+  }
+</style>
