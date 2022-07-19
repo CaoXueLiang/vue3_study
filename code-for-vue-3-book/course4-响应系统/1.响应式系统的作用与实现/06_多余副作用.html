@@ -32,6 +32,8 @@
       depsMap.set(key, (deps = new Set()));
     }
     deps.add(activeEffect);
+    // 当前活跃的 activeEffect.deps 收集deps
+    activeEffect.deps.push(deps);
   }
 
   function trigger(target, key) {
@@ -40,28 +42,35 @@
       return;
     }
     const effects = depsMap.get(key);
-    effects && effects.forEach((fn) => fn());
+
+    const effectsToRun = new Set();
+    effects && effects.forEach((effectFn) => effectsToRun.add(effectFn));
+    effectsToRun.forEach((effectFn) => effectFn());
   }
 
   // 用一个全局变量 activeEffect 存储当前激活的 effect 函数
   let activeEffect;
   function effect(fn) {
-    // const effectFn = () => {
-    //   cleanup(effectFn);
-    //   activeEffect = effectFn;
-    //   fn();
-    // };
-    // // activeEffect.deps 用来存储所有与该副作用函数相关的依赖集合
-    // effectFn.deps = [];
-    // // 执行副作用函数
-    // effectFn();
-
-    activeEffect = fn;
-    fn();
+    const effectFn = () => {
+      cleanup(effectFn);
+      // console.log("bucker--1", bucket);
+      // debugger;
+      //当调用 effect 注册副作用函数时，将副作用函数赋值给 activeEffect
+      activeEffect = effectFn;
+      fn();
+      // console.log("bucker--2", bucket);
+      // debugger;
+    };
+    // activeEffect.deps 用来存储所有与该副作用函数相关的依赖集合（保存的是set集合，【set()，set()，set()】）
+    effectFn.deps = [];
+    // 执行副作用函数
+    effectFn();
   }
 
   function cleanup(effectFn) {
     for (let index = 0; index < effectFn.deps.length; index++) {
+      // deps 是一个set集合。将effectFn从set中删除
+      // 将effectFn副作用函数,从依赖列表中删除
       const deps = effectFn.deps[index];
       deps.delete(effectFn);
     }
@@ -73,8 +82,6 @@
     const element = document.getElementById("app");
     element.innerText = proxyObj.ok ? proxyObj.text : "not";
   });
-
-  console.log("bucker", bucket);
 
   setTimeout(() => {
     proxyObj.ok = false;
