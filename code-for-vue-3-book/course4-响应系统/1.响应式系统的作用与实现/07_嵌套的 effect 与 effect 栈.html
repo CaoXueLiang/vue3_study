@@ -1,0 +1,116 @@
+<body>
+  <div id="app"></div>
+</body>
+
+<script>
+  // 存储副作用函数的桶
+  const bucket = new WeakMap();
+
+  //原始数据
+  const data = {
+    foo: true,
+    bar: true,
+  };
+
+  const obj = new Proxy(data, {
+    get(target, key) {
+      // 追踪
+      track(target, key);
+      return target[key];
+    },
+    set(target, key, newValue) {
+      target[key] = newValue;
+      // 触发
+      trigger(target, key);
+    },
+  });
+
+  function track(target, key) {
+    let depsMap = bucket.get(target);
+    if (!depsMap) {
+      bucket.set(target, (depsMap = new Map()));
+    }
+    let deps = depsMap.get(key);
+    if (!deps) {
+      depsMap.set(key, (deps = new Set()));
+    }
+    deps.add(activeEffect);
+    // 当前活跃的 activeEffect.deps 收集deps
+    activeEffect.deps.push(deps);
+  }
+
+  function trigger(target, key) {
+    const depsMap = bucket.get(target);
+    if (!depsMap) {
+      return;
+    }
+    const effects = depsMap.get(key);
+
+    const effectsToRun = new Set();
+    effects && effects.forEach((effectFn) => effectsToRun.add(effectFn));
+    effectsToRun.forEach((effectFn) => effectFn());
+  }
+
+  // 用一个全局变量 activeEffect 存储当前激活的 effect 函数
+  let activeEffect;
+  // effect 栈
+  const effectStack = [];
+
+  function effect(fn) {
+    const effectFn = () => {
+      cleanup(effectFn);
+      // 当调用 effect 注册副作用函数时，将副作用函数赋值给 activeEffect
+      activeEffect = effectFn;
+      // 在调用副作用函数之前将当前的副作用函数压栈
+      effectStack.push(effectFn);
+      fn();
+      // 在当前副作用函数执行完毕后，将当前的副作用函数弹出栈，并还原 activeEffect 为之前的值
+      effectStack.pop();
+      activeEffect = effectStack[effectStack.length - 1];
+    };
+    // activeEffect.deps 用来存储所有与该副作用函数相关的依赖集合（保存的是set集合，【set()，set()，set()】）
+    effectFn.deps = [];
+    // 执行副作用函数
+    effectFn();
+  }
+
+  function cleanup(effectFn) {
+    for (let index = 0; index < effectFn.deps.length; index++) {
+      // deps 是一个set集合。将effectFn从set中删除
+      // 将effectFn副作用函数,从依赖列表中删除
+      const deps = effectFn.deps[index];
+      deps.delete(effectFn);
+    }
+    effectFn.deps.length = 0;
+  }
+
+  // =============================================
+  let tmp1, tmp2;
+
+  effect(function effectFn1() {
+    console.log("effectFn1 执行");
+    effect(function effectFn2() {
+      console.log("effectFn2 执行");
+      tmp2 = obj.bar;
+    });
+    tmp1 = obj.foo;
+  });
+
+  setTimeout(() => {
+    obj.foo = false;
+  }, 1000);
+
+  /**
+   * 执行步骤：
+   * 1. effectFn1 执行
+   * 2. effectFn2 执行
+   * 3. effectFn2 执行
+   * 可以发现，这样出现了问题。改变的是 obj.foo 应该触发 effectFn1执行，但是却触发了 effectFn2执行
+   *
+   * 分析原因：当执行到 tmp1 = obj.foo 这行代码时，触发 track方法追踪依赖
+   * 但是此时问题来了，activeEffect 保存的是嵌套函数的 effectFn2, 所以当改变 obj.foo 时会触发 effectFn2
+   *
+   * ❗解决方案：使用effect栈 effectStack 来存储副作用函数
+   *
+   */
+</script>
