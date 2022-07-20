@@ -1,0 +1,55 @@
+<body></body>
+
+<script type="module">
+  import { track, trigger, effect, ITERATE_KEY } from "./reactive.js";
+
+  const obj = { foo: NaN };
+
+  const p = new Proxy(obj, {
+    get(target, key, receiver) {
+      track(target, key);
+      return Reflect.get(target, key, receiver);
+    },
+    set(target, key, newVal, receiver) {
+      const oldVal = target[key];
+      const type = Object.prototype.hasOwnProperty.call(target, key)
+        ? "SET"
+        : "ADD";
+      const res = Reflect.set(target, key, newVal, receiver);
+      if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) {
+        trigger(target, key, type);
+      }
+      return res;
+    },
+    deleteProperty(target, key) {
+      const hasKey = Object.prototype.hasOwnProperty.call(target, key);
+      const res = Reflect.deleteProperty(target, key);
+      if (res && hasKey) {
+        trigger(target, key, "DELETE");
+      }
+      return res;
+    },
+    has(target, key) {
+      track(target, key);
+      return Reflect.has(target, key);
+    },
+    ownKeys(target) {
+      track(target, ITERATE_KEY);
+      return Reflect.ownKeys(target);
+    },
+  });
+
+  // =================================================================
+  effect(() => {
+    console.log("---触发副作用函数----", p.foo);
+  });
+  p.foo = NaN;
+  //   p.foo = 10;
+
+  /**
+   * ❗发现问题：
+   * 当初始值为 NaN 时，再次修改它的值为 NaN 时也会触发副作用函数
+   * 原因是 (NaN === NaN) = false。
+   * 解决方法：在 set 函数内进行拦截，判断只有新值和旧值不相同时，才触发 trigger
+   */
+</script>

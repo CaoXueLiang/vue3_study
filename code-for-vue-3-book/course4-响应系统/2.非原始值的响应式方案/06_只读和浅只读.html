@@ -1,0 +1,13 @@
+<body></body>
+<script type="module">
+  import { reactive, effect, readonly, shallowReadonly } from "./reactive.js";
+
+  const obj = readonly({ foo: { bar: 1 }, firstName: "li ning" });
+
+  effect(() => {
+    console.log(obj.foo.bar);
+  });
+
+  obj.foo.bar = 2;
+  delete obj.firstName;
+</script>

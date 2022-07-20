@@ -1,0 +1,34 @@
+<body></body>
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  const obj = reactive({
+    foo: { bar: 1, child: { name: "childName" } },
+    firstName: "li ning",
+    age: 20,
+    girlFriend: "xiao hua",
+  });
+
+  effect(() => {
+    console.log("obj.age", obj.age);
+  });
+
+  effect(() => {
+    console.log("obj.foo.bar", obj.foo.bar);
+  });
+
+  effect(() => {
+    console.log("obj.foo.bar", obj.foo.child.name);
+  });
+
+  obj.age = 30;
+  obj.foo.bar = 2;
+  obj.foo.child.name = "another child name";
+
+  /**
+   * 执行如上代码可以发现：只有浅层次的属性改变能触发副作用函数
+   * 所以我们需要改造 reactive 函数，使其支持浅响应和深响应
+   * 封装一个新的函数 `createReactive` 来创建 `reactive` 和 `shallowReactive`
+   * 默认是深层次的响应
+   */
+</script>

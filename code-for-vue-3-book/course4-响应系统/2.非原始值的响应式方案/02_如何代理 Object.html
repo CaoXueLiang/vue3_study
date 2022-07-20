@@ -1,0 +1,93 @@
+<body></body>
+
+<script type="module">
+  import { track, trigger, effect, ITERATE_KEY } from "./reactive.js";
+
+  /**
+   * 对象的读取操作有哪些？？
+   * 1. 通过属性访问：obj.key
+   * 2. 判断一个对象或者对象的原型上是否存在某个key: key in obj
+   * 3. 通过for...in循环遍历兑现：for...in
+   *
+   * ① 对于属性访问可以通过 get,set进行拦截
+   * ② 对于 key in obj 可以通过 has 进行拦截
+   * ③ 对于 for..in 循环可以通过 ownKeys 进行拦截 (删除和新增属性时，需要trigger触发)
+   * ④ 对于属性的删除使用 `deleteProperty` 进行监听
+   * ⑤ 属性的新增也是在 `set` 中监听的
+   */
+
+  const obj = {
+    foo: 1,
+    age: 20,
+    firstName: "li ning",
+    get bar() {
+      return this.foo;
+    },
+  };
+
+  const p = new Proxy(obj, {
+    get(target, key, receiver) {
+      track(target, key);
+      return Reflect.get(target, key, receiver);
+    },
+    set(target, key, newVal, receiver) {
+      const type = Object.prototype.hasOwnProperty.call(target, key)
+        ? "SET"
+        : "ADD";
+      const res = Reflect.set(target, key, newVal, receiver);
+      trigger(target, key, type);
+      return res;
+    },
+    deleteProperty(target, key) {
+      const hasKey = Object.prototype.hasOwnProperty.call(target, key);
+      const res = Reflect.deleteProperty(target, key);
+      if (res && hasKey) {
+        trigger(target, key, "DELETE");
+      }
+      return res;
+    },
+    has(target, key) {
+      track(target, key);
+      return Reflect.has(target, key);
+    },
+    ownKeys(target) {
+      track(target, ITERATE_KEY);
+      return Reflect.ownKeys(target);
+    },
+  });
+
+  // 1>---监听属性的，新增、访问、删除
+  //   effect(() => {
+  //     console.log("p.bar", p.bar);
+  //     console.log("age", p.age);
+  //   });
+  //   p.foo++;
+  //   delete p.age;
+  //   p.lastName = "哈哈哈";
+
+  // 2>---监听属性的 key in obj
+  //   effect(() => {
+  //     console.log("foo" in p);
+  //   });
+  //   delete p.foo;
+
+  // 3>---监听对象的 for...in 遍历
+  effect(() => {
+    console.log("-------------------");
+    for (const key in p) {
+      console.log("key: ", key);
+    }
+  });
+  //   p.foo = 3;
+  //   delete p.foo;
+  p.girlFriend = "xiao ming";
+
+  /**
+   * ❗❗观察3中监听 for...in 遍历对象，存在问题：
+   * 不仅删除属性和添加新属性会触发副作用函数，而且设置已有属性的值也会触发副作用函数执行
+   * 为了减少性能的损耗，应该只有在 ADD 新属性时才触发，当 SET 时不触发副作用函数
+   *
+   * 解决方法：set监听中判断是 ADD 还是 SET，之后在trigger中进行判断处理
+   * 通过 `Object.prototype.hasOwnProperty` 判断是否是已有属性
+   */
+</script>
