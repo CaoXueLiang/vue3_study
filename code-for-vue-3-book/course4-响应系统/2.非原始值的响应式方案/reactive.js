@@ -1,10 +1,12 @@
+import { isSetObject, isMapObject } from "./utils.js";
+
 // 存储副作用函数的桶
 const bucket = new WeakMap();
 
 const ITERATE_KEY = Symbol();
 
 function track(target, key) {
-  if (!activeEffect) return;
+  if (!activeEffect || !shouldTrack) return;
   let depsMap = bucket.get(target);
   if (!depsMap) {
     bucket.set(target, (depsMap = new Map()));
@@ -18,7 +20,7 @@ function track(target, key) {
   activeEffect.deps.push(deps);
 }
 
-function trigger(target, key, type) {
+function trigger(target, key, type, newVal) {
   const depsMap = bucket.get(target);
   if (!depsMap) {
     return;
@@ -41,6 +43,28 @@ function trigger(target, key, type) {
           effectsToRun.add(effectFn);
         }
       });
+  }
+
+  if (type === "ADD" && Array.isArray(target)) {
+    const lengthEffects = depsMap.get("length");
+    lengthEffects &&
+      lengthEffects.forEach((effectFn) => {
+        if (effectFn !== activeEffect) {
+          effectsToRun.add(effectFn);
+        }
+      });
+  }
+
+  if (Array.isArray(target) && key === "length") {
+    depsMap.forEach((effects, key) => {
+      if (key >= newVal) {
+        effects.forEach((effectFn) => {
+          if (effectFn !== activeEffect) {
+            effectsToRun.add(effectFn);
+          }
+        });
+      }
+    });
   }
 
   effectsToRun.forEach((effectFn) => {
@@ -107,14 +131,72 @@ function shallowReadonly(obj) {
   return createReactive(obj, true, true);
 }
 
+const arrayInstrumentations = {};
+["includes", "indexOf", "lastIndexOf"].forEach((method) => {
+  const originalMethod = Array.prototype[method];
+  arrayInstrumentations[method] = function (...args) {
+    // this 是代理对象，先在代理对象中查找，将结果存储到 res 中
+    let res = originalMethod.apply(this, args);
+    if (res === false) {
+      // res 为 false 说明没找到，在通过 this.raw 拿到原始数组，再去原始数组中查找
+      res = originalMethod.apply(this.raw, args);
+    }
+    return res;
+  };
+});
+
+let shouldTrack = true;
+["push", "unshift", "pop", "shift"].forEach((method) => {
+  const originalMethod = Array.prototype[method];
+  arrayInstrumentations[method] = function (...args) {
+    shouldTrack = false;
+    let res = originalMethod.apply(this, args);
+    shouldTrack = true;
+    return res;
+  };
+});
+
+const setInstrumentations = {
+  add(key) {
+    const target = this.raw;
+    const hasKey = target.has(key);
+    const res = target.add(key);
+    if (!hasKey) {
+      trigger(target, key, "ADD");
+    }
+    return res;
+  },
+  delete(key) {
+    const target = this.raw;
+    const res = target.delete(key);
+    trigger(target, key, "DELETE");
+    return res;
+  },
+};
+
 function createReactive(obj, isShallow = false, isReadonly = false) {
   return new Proxy(obj, {
     get(target, key, receiver) {
       if (key === "raw") {
         return target;
       }
+
+      if (Array.isArray(target) && arrayInstrumentations.hasOwnProperty(key)) {
+        return Reflect.get(arrayInstrumentations, key, receiver);
+      }
+
+      // 判断是否是 Set
+      if (isSetObject(target)) {
+        if (key === "size") {
+          track(target, ITERATE_KEY);
+          return Reflect.get(target, key, target);
+        } else {
+          return Reflect.get(setInstrumentations, key, receiver);
+        }
+      }
+
       // 非只读的时候才需要建立响应联系
-      if (!isReadonly) {
+      if (!isReadonly && typeof key !== "symbol") {
         track(target, key);
       }
 
@@ -134,14 +216,17 @@ function createReactive(obj, isShallow = false, isReadonly = false) {
         return true;
       }
       const oldVal = target[key];
-      const type = Object.prototype.hasOwnProperty.call(target, key)
+      const type = Array.isArray(target)
+        ? Number(key) < target.length
+          ? "SET"
+          : "ADD"
+        : Object.prototype.hasOwnProperty.call(target, key)
         ? "SET"
         : "ADD";
       const res = Reflect.set(target, key, newVal, receiver);
-      // console.log(target === receiver.raw);
       if (target === receiver.raw) {
         if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) {
-          trigger(target, key, type);
+          trigger(target, key, type, newVal);
         }
       }
       return res;
@@ -163,7 +248,9 @@ function createReactive(obj, isShallow = false, isReadonly = false) {
       return Reflect.has(target, key);
     },
     ownKeys(target) {
-      track(target, ITERATE_KEY);
+      // 如果是通过 for..in 遍历数组，则将 length 作为key
+      const normalKey = Array.isArray(target) ? "length" : ITERATE_KEY;
+      track(target, normalKey);
       return Reflect.ownKeys(target);
     },
   });

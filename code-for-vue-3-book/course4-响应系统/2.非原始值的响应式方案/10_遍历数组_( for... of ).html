@@ -1,0 +1,57 @@
+<body></body>
+<script type="module">
+  /**
+   * 可迭代对象：实现了可迭代协议的对象 `Symbol.iterator`
+   */
+  const obj = {
+    val: 0,
+    [Symbol.iterator]() {
+      return {
+        next() {
+          return {
+            value: obj.val++,
+            done: obj.val > 10 ? true : false,
+          };
+        },
+      };
+    },
+  };
+
+  //   for (const value of obj) {
+  //     console.log(value);
+  //   }
+
+  const arr = [1, 2, 3, 4, 5];
+  const itr = arr[Symbol.iterator]();
+  //   console.log(itr.next());
+  //   console.log(itr.next());
+  //   console.log(itr.next());
+  //   console.log(itr.next());
+  //   console.log(itr.next());
+  //   console.log(itr.next());
+  //   console.log(itr.next());
+
+  // 数组本身是实现了可迭代的协议
+  //   for (const item of arr) {
+  //     console.log(item);
+  //   }
+
+  // 自定义数组的可迭代协议
+  arr[Symbol.iterator] = function () {
+    const target = this;
+    const len = target.length;
+    let index = 0;
+    return {
+      next() {
+        return {
+          value: index < len ? target[index] : undefined,
+          done: index++ >= len,
+        };
+      },
+    };
+  };
+
+  for (const val of arr) {
+    console.log(val);
+  }
+</script>

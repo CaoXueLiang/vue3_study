@@ -1,0 +1,23 @@
+<body></body>
+
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  /**
+   * 1、set的代理对象p上没有 delete 方法。需要在get中拦截，然后重写delete方法。
+   * 2、set的代理对象上也没有 add 方法。 需要在get中拦截，重写add方法。
+   * 3、set的代理对象p上也没有 size 属性，需要特殊处理。
+   */
+
+  const s = new Set([1, 2, 3]);
+  const p = reactive(s);
+
+  effect(() => {
+    console.log("effect run");
+    console.log(p.size);
+  });
+
+  p.add("firstName");
+  p.add("lastName");
+  p.delete(1);
+</script>

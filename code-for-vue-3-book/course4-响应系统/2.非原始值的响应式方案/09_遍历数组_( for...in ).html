@@ -1,0 +1,25 @@
+<body></body>
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  const arr = reactive(["foo", "lastName"]);
+  effect(() => {
+    console.log("------------");
+    for (const key in arr) {
+      console.log("key--", key);
+    }
+  });
+
+  //   arr[0] = "firstName";
+  //   arr[2] = "bar";
+  arr.length = 1;
+
+  /**
+   * 直接执行会报下面的错误
+   * ❌Uncaught TypeError: Cannot convert a Symbol value to a number
+   *
+   * 通过分析得到：for...in 遍历数组也会走 ownKeys函数
+   * 则如果是通过 for..in 遍历数组，则将 length 作为key
+   * `const normalKey = Array.isArray(target) ? "length" : ITERATE_KEY;`
+   */
+</script>

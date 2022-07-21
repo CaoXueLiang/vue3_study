@@ -1,0 +1,17 @@
+<body></body>
+
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  const arr = reactive([1, 2, 3, 4, "array5"]);
+  effect(() => {
+    for (const val of arr.keys()) {
+      console.log(val);
+    }
+  });
+
+  //   arr[1] = "bar";
+  arr.length = 0;
+
+  // 这个没有触发响应
+</script>

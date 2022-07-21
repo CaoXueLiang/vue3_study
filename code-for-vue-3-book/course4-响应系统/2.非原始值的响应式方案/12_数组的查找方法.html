@@ -1,0 +1,23 @@
+<body></body>
+
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  const obj = { firstName: "li ning", lastName: "xiao hua" };
+  const arr = reactive([obj]);
+
+  console.log(arr.includes(obj));
+  //   console.log(arr.raw.includes(obj));
+
+  //   console.log(arr);
+  //   console.log(arr.raw);
+
+  /**
+   * 直接执行上述代码，arr.includes(obj) = false.
+   * 但是正常应该是为 true 才对
+   *
+   * 解决方法：
+   * 重写 includes、indexOf、lastIndexOf 方法
+   * 先在代理对象中找，然后再在代理对象的原始对象中找
+   */
+</script>

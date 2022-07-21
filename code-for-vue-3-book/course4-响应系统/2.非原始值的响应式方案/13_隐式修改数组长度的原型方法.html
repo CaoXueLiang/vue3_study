@@ -1,0 +1,24 @@
+<body></body>
+
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  // 隐式修改数组长度的原型方法
+  // push, pop, shift, unshift
+
+  const arr = reactive([]);
+  effect(() => {
+    console.log("effect 1 run");
+    arr.push(1);
+  });
+  effect(() => {
+    console.log("effect 2 run");
+    arr.push(2);
+  });
+
+  /**
+   * 执行上述代码，报如下错误：
+   * ❌Uncaught RangeError: Maximum call stack size exceeded
+   * 重写push, pop, shift, unshift 方法
+   */
+</script>
