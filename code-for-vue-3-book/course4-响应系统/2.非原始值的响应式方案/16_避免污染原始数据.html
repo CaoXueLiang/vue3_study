@@ -1,0 +1,24 @@
+<body></body>
+
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  const m = new Map();
+  const p1 = reactive(m);
+  const p2 = reactive(new Map());
+  p1.set("p2", p2);
+
+  effect(() => {
+    console.log(m.get("p2").size);
+  });
+
+  m.get("p2").set("foo", 1);
+
+  /**
+   * 执行上述代码，发现修改原数据，也会触发副作用函数
+   * 应该避免对原始数据的污染。
+   *
+   * // set时，如果是代理，要设置代理的原始值。避免污染原始数据
+   * // const rawValue = newVal.raw || newVal;
+   */
+</script>

@@ -1,0 +1,18 @@
+<body></body>
+
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  const key = { key: 1 };
+  const setValue = new Set([1, 2, 3]);
+  const p = reactive(new Map([[key, setValue]]));
+
+  effect(() => {
+    console.log("effect run------");
+    p.forEach((value, key) => {
+      console.log(value.size);
+    });
+  });
+
+  p.get(key).delete(1);
+</script>

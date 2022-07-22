@@ -1,0 +1,34 @@
+<body></body>
+
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  const p = reactive(new Map([["firstName", 1]]));
+
+  effect(() => {
+    console.log("effect run-----");
+    p.forEach((value, key) => {
+      console.log(value);
+    });
+  });
+
+  p.set("firstName", 2);
+  //   p.set("lastName", "liNing");
+  //   p.delete("firstName");
+
+  /**
+   * ❌执行上述代码，发现改变了 key 的值。但是没有重新触发副作用函数
+   *
+   * 1.分析原因：
+   * forEach 依赖追踪的是 `track(target, ITERATE_KEY);`
+   * 而通过 `p.set("firstName", 2)` 修改值，触发的是 ` trigger(target, 'firstName', "SET");`
+   * 当执行到 trigger 函数时，因为没有对属性firstName进行get访问，所以通过`firstName`取到的副作用函数集合是 undefined
+   * 所以，最终什么也没执行。
+   *
+   * 2.解决方案：
+   * 在trigger 函数中判断，如果是map，并且 type = 'SET',则触发 ITERATE_KEY 所依赖的副作用函数执行。
+   * // 判断 target 是Map，并且是 set 类型
+   * // const isMapAndSet = isMapObject(target) && type === "SET";
+   *
+   */
+</script>

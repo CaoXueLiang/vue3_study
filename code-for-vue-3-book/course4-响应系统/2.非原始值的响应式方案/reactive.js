@@ -4,6 +4,7 @@ import { isSetObject, isMapObject } from "./utils.js";
 const bucket = new WeakMap();
 
 const ITERATE_KEY = Symbol();
+const MAP_KEY_ITERATE_KEY = Symbol();
 
 function track(target, key) {
   if (!activeEffect || !shouldTrack) return;
@@ -35,8 +36,21 @@ function trigger(target, key, type, newVal) {
       }
     });
 
-  if (type === "ADD" || type === "DELETE") {
+  // 判断 target 是Map，并且是 set 类型
+  const isMapAndSet = isMapObject(target) && type === "SET";
+
+  if (type === "ADD" || type === "DELETE" || isMapAndSet) {
     const iterateEffects = depsMap.get(ITERATE_KEY);
+    iterateEffects &&
+      iterateEffects.forEach((effectFn) => {
+        if (effectFn !== activeEffect) {
+          effectsToRun.add(effectFn);
+        }
+      });
+  }
+
+  if (isMapObject(target) && (type === "ADD" || type === "DELETE")) {
+    const iterateEffects = depsMap.get(MAP_KEY_ITERATE_KEY);
     iterateEffects &&
       iterateEffects.forEach((effectFn) => {
         if (effectFn !== activeEffect) {
@@ -115,8 +129,15 @@ function cleanup(effectFn) {
   effectFn.deps.length = 0;
 }
 
+const reactiveMap = new Map();
 function reactive(obj) {
-  return createReactive(obj);
+  const proxy = createReactive(obj);
+  const existionProxy = reactiveMap.get(obj);
+  if (existionProxy) {
+    return existionProxy;
+  }
+  reactiveMap.set(obj, proxy);
+  return proxy;
 }
 
 function shallowReactive(obj) {
@@ -174,6 +195,115 @@ const setInstrumentations = {
   },
 };
 
+const mapInstrumentations = {
+  get(key) {
+    // 获取代理对象的原始对象
+    const target = this.raw;
+    const had = target.has(key);
+    track(target, key);
+    if (had) {
+      const res = target.get(key);
+      return typeof res === "object" ? reactive(res) : res;
+    }
+  },
+  set(key, newVal) {
+    const target = this.raw;
+    const had = target.has(key);
+    const oldValue = target.get(key);
+    // set时，如果是代理，要设置代理的原始值。避免污染原始数据
+    const rawValue = newVal.raw || newVal;
+    target.set(key, rawValue);
+    if (!had) {
+      trigger(target, key, "ADD");
+    } else if (
+      oldValue !== newVal &&
+      (oldValue === oldValue || newVal === newVal)
+    ) {
+      trigger(target, key, "SET");
+    }
+  },
+  delete(key) {
+    const target = this.raw;
+    const res = target.delete(key);
+    if (res) {
+      trigger(target, key, "DELETE");
+    }
+    return res;
+  },
+  forEach(callback) {
+    // 如果value 值是对象，需要将value也设置为响应式的
+    const wrap = (val) => (typeof val === "object" ? reactive(val) : val);
+    const target = this.raw;
+    track(target, ITERATE_KEY);
+    target.forEach((v, k) => {
+      callback(wrap(v), wrap(k), this);
+    });
+  },
+  [Symbol.iterator]: iterationMethod,
+  entries: iterationMethod,
+  keys: keysIterationMethod,
+  values: valuesIterationMethod,
+};
+
+function iterationMethod() {
+  const target = this.raw;
+  // 获取原始值的迭代器方法
+  const itr = target[Symbol.iterator]();
+  const wrap = (val) => (typeof val === "object" ? reactive(val) : val);
+  track(target, ITERATE_KEY);
+  return {
+    next() {
+      const { value, done } = itr.next();
+      return {
+        value: value ? [wrap(value[0]), wrap(value[1])] : value,
+        done,
+      };
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
+
+function keysIterationMethod() {
+  const target = this.raw;
+  // 获取原始值的迭代器方法
+  const itr = target.keys();
+  const wrap = (val) => (typeof val === "object" ? reactive(val) : val);
+  track(target, MAP_KEY_ITERATE_KEY);
+  return {
+    next() {
+      const { value, done } = itr.next();
+      return {
+        value: wrap(value),
+        done,
+      };
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
+
+function valuesIterationMethod() {
+  const target = this.raw;
+  const itr = target.values();
+  const wrap = (val) => (typeof val === "object" ? reactive(val) : val);
+  track(target, ITERATE_KEY);
+  return {
+    next() {
+      const { value, done } = itr.next();
+      return {
+        value: wrap(value),
+        done,
+      };
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
+
 function createReactive(obj, isShallow = false, isReadonly = false) {
   return new Proxy(obj, {
     get(target, key, receiver) {
@@ -192,6 +322,16 @@ function createReactive(obj, isShallow = false, isReadonly = false) {
           return Reflect.get(target, key, target);
         } else {
           return Reflect.get(setInstrumentations, key, receiver);
+        }
+      }
+
+      // 判断是否是 Map
+      if (isMapObject(target)) {
+        if (key === "size") {
+          track(target, ITERATE_KEY);
+          return Reflect.get(target, key, target);
+        } else {
+          return Reflect.get(mapInstrumentations, key, receiver);
         }
       }
 

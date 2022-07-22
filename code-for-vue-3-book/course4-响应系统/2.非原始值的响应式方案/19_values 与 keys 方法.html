@@ -1,0 +1,58 @@
+<body></body>
+
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  // 1. map中的 keys() 方法
+  /* 
+  const p = reactive(
+    new Map([
+      ["key1", "value1"],
+      ["key2", "value2"],
+    ])
+  );
+
+  effect(() => {
+    console.log("effect run -----");
+    for (const value of p.keys()) {
+      console.log(value);
+    }
+  });
+
+  p.set("key3", "value3");
+  p.delete("key2");
+
+  */
+
+  // 2. map中的 entries(), values()，代理对象自身的迭代器 方法
+  const m = reactive(
+    new Map([
+      ["key1", "value1"],
+      ["key2", "value2"],
+    ])
+  );
+
+  effect(() => {
+    console.log("effect run iterator------");
+    for (const iterator of m) {
+      console.log(iterator);
+    }
+  });
+
+  //   effect(() => {
+  //     console.log("effect run values------");
+  //     for (const value of m.values()) {
+  //       console.log(value);
+  //     }
+  //   });
+
+  //   effect(() => {
+  //     console.log("effect run entries----");
+  //     for (const item of m.entries()) {
+  //       console.log(item);
+  //     }
+  //   });
+
+  m.set("key3", "value3");
+  m.delete("key2");
+</script>
