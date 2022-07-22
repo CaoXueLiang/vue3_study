@@ -1,0 +1,28 @@
+<script type="module">
+  import { reactive, effect } from "./reactive.js";
+
+  function ref(val) {
+    const wrapper = {
+      value: val,
+    };
+    Object.defineProperty(wrapper, "__v_isRef", {
+      value: true,
+    });
+    return reactive(wrapper);
+  }
+
+  function isRef(val) {
+    return val.__v_isRef === true;
+  }
+
+  //-----------------------------------------------
+  const refVal = ref(1);
+  console.log(isRef(refVal));
+
+  effect(() => {
+    console.log("effect run----", refVal.value);
+  });
+
+  refVal.value = 2;
+  refVal.value = "foo";
+</script>

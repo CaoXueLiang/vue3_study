@@ -1,0 +1,44 @@
+<script type="module">
+  import { reactive, effect, toRef, toRefs } from "./reactive.js";
+
+  /* 
+ const obj = reactive({ foo: 1, bar: 2 });
+
+  const newObj = {
+    ...obj,
+  };
+
+  effect(() => {
+    console.log("effect run----", newObj.foo);
+  });
+
+  obj.foo = 100;
+  */
+
+  /**
+   * 当执行`obj.foo = 100`时，会发现副作用函数 effect 没有重新执行
+   * 这就是响应丢失问题，根本原因在于对响应式对象解构 ...obj
+   *
+   * 解决方法：定义 toRef 和 toRefs 两个方法
+   * 在对象内部定义 get 和 set 方法，实际上还是访问的响应式对象的key
+   */
+
+  const obj = reactive({ foo: "fooValue", bar: "barValue" });
+  // toRef 使用
+  //   const refFoo = toRef(obj, "foo");
+  //   const refBar = toRef(obj, "bar");
+
+  //   effect(() => {
+  //     console.log("effect1 run----", refFoo.value);
+  //   });
+
+  //   refFoo.value = 100;
+
+  // toRefs 使用
+  const newObj = { ...toRefs(obj) };
+  effect(() => {
+    console.log("effect2 run----", newObj.foo.value);
+  });
+
+  newObj.foo.value = "new foo";
+</script>

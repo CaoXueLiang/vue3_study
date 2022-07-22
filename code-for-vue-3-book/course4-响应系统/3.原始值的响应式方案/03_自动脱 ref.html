@@ -1,0 +1,11 @@
+<script type="module">
+  import { reactive, effect, toRef, toRefs, proxyRefs } from "./reactive.js";
+
+  const obj = reactive({ foo: "fooValue", bar: "barValue" });
+  const newObj = proxyRefs({ ...toRefs(obj) });
+  effect(() => {
+    console.log("effect2 run----", newObj.foo);
+  });
+
+  newObj.foo = "new foo";
+</script>
