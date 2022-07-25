@@ -1,0 +1,34 @@
+<div id="app"></div>
+<script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
+
+<script>
+  function createRenderer() {
+    function patch(oldVnode, newVnode, container) {}
+
+    function render(vnode, container) {
+      if (vnode) {
+        // newVnode 存在，将 newVnode 与 oldVnode进行patch
+        patch(container._vnode, vnode, container);
+      } else {
+        // newVnode 不存在
+        if (container._vnode) {
+          // oldVnode 存在，且newVnode 不存在，说明是卸载操作（unmount）
+          // 只需要将 container 内的 DOM 清空即可
+          container.innerHTML = "";
+        }
+      }
+      // 把 vnode 存储到 container._vnode 下，即后续渲染中的 oldVnode
+      container._vnode = vnode;
+    }
+
+    return { render };
+  }
+
+  const renderer = createRenderer();
+  // 首次渲染
+  renderer.render(vnode1, document.querySelector("#app"));
+  // 更新
+  renderer.render(vnode2, document.querySelector("#app"));
+  // 卸载
+  renderer.render(null, document.querySelector("#app"));
+</script>

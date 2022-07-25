@@ -1,0 +1,83 @@
+<div id="app"></div>
+
+<script>
+  /**
+   * 通用渲染器：为了实现一个通用的渲染器，需要将浏览器相关的`API`抽离出来
+   * 不同平台传入不同平台的 options
+   */
+
+  // 浏览器相关的API
+  const browserAPI = {
+    createElement(tag) {
+      return document.createElement(tag);
+    },
+    setElementText(el, text) {
+      el.textContent = text;
+    },
+    insert(el, parent, anchor = null) {
+      parent.insertBefore(el, anchor);
+    },
+  };
+
+  // 通用API
+  const commonAPI = {
+    createElement(tag) {
+      console.log(`创建元素 ${tag}`);
+      return { tag };
+    },
+    setElementText(el, text) {
+      console.log(`设置 ${JSON.stringify(el)} 的文本内容：${text}`);
+      el.text = text;
+    },
+    insert(el, parent, anchor = null) {
+      console.log(`将 ${JSON.stringify(el)}添加到${JSON.stringify(parent)}下`);
+      parent.children = el;
+    },
+  };
+
+  function createRenderer(options) {
+    const { createElement, setElementText, insert } = options;
+    // 初始化渲染
+    function mountElement(vnode, container) {
+      const el = createElement(vnode.type);
+      if (typeof vnode.children === "string") {
+        setElementText(el, vnode.children);
+      }
+      insert(el, container);
+    }
+
+    function patch(oldVnode, vnode, container) {
+      if (!oldVnode) {
+        mountElement(vnode, container);
+      } else {
+        //
+      }
+    }
+
+    function render(vnode, container) {
+      if (vnode) {
+        // newVnode 存在，将 oldVnode 和 newVnode 进行patch
+        patch(container._vnode, vnode, container);
+      } else {
+        // newVnode 不存在，并且oldVnode存在，说明是卸载操作（unmount）
+        if (container._vnode) {
+          container.innerHTML = "";
+        }
+      }
+      container._vnode = vnode;
+    }
+
+    return { render };
+  }
+
+  const renderer1 = createRenderer(browserAPI);
+  const textVnode = {
+    type: "span",
+    children: "hello world",
+  };
+  renderer1.render(textVnode, document.getElementById("app"));
+
+  const renderer2 = createRenderer(commonAPI);
+  const container = { type: "root" };
+  renderer2.render(textVnode, container);
+</script>
