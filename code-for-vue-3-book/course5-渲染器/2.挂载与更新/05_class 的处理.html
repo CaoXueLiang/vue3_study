@@ -1,0 +1,93 @@
+<div id="app"></div>
+
+<script>
+  function shouldSetAsProps(el, key, value) {
+    if (key === "form" && el.tagName === "INPUT") {
+      return false;
+    }
+    return key in el;
+  }
+
+  function createRenderer(options) {
+    const { createElement, setElementText, insert, patchProps } = options;
+
+    function mountElement(vnode, container) {
+      const el = createElement(vnode.type);
+      if (typeof vnode.children === "string") {
+        setElementText(el, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        vnode.children.forEach((element) => {
+          patch(null, element, el);
+        });
+      }
+
+      if (vnode.props) {
+        for (const key in vnode.props) {
+          patchProps(el, key, null, vnode.props[key]);
+        }
+      }
+      insert(el, container);
+    }
+
+    function patch(oldVnode, vnode, container) {
+      if (!oldVnode) {
+        mountElement(vnode, container);
+      } else {
+        //
+      }
+    }
+
+    function render(vnode, container) {
+      if (vnode) {
+        // newVnode 存在，将 oldVnode 和 newVnode 进行patch
+        patch(container._vnode, vnode, container);
+      } else {
+        // newVnode 不存在，并且oldVnode存在，说明是卸载操作（unmount）
+        if (container._vnode) {
+          container.innerHTML = "";
+        }
+      }
+      container._vnode = vnode;
+    }
+
+    return { render };
+  }
+
+  //-----------------------------------------------------------------------------
+
+  const browserAPI = {
+    createElement(tag) {
+      return document.createElement(tag);
+    },
+    setElementText(el, text) {
+      el.textContent = text;
+    },
+    insert(el, parent, anchor = null) {
+      parent.insertBefore(el, anchor);
+    },
+    patchProps(el, key, preValue, nextValue) {
+      if (key === "class") {
+        // 使用className 这样设置class性能最好，默认也可以使用 setAttribute
+        el.className = nextValue;
+      } else if (shouldSetAsProps(el, key, nextValue)) {
+        if (typeof el[key] === "boolean" && nextValue === "") {
+          el[key] = true;
+        } else {
+          el[key] = nextValue;
+        }
+      } else {
+        el.setAttribute(key, nextValue);
+      }
+    },
+  };
+
+  const renderer = createRenderer(browserAPI);
+  const vnode = {
+    type: "p",
+    props: {
+      class: "foo bar baz",
+    },
+    children: "text",
+  };
+  renderer.render(vnode, document.getElementById("app"));
+</script>

@@ -1,0 +1,95 @@
+<div id="app"></div>
+<!-- <div data-a="3" mmm="asdf" draggable="true"></div>
+<input value="aaa" /> -->
+
+<script>
+  function createRenderer(options) {
+    const { createElement, setElementText, insert } = options;
+
+    function mountElement(vnode, container) {
+      const el = createElement(vnode.type);
+      if (typeof vnode.children === "string") {
+        setElementText(el, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        vnode.children.forEach((element) => {
+          patch(null, element, el);
+        });
+      }
+
+      if (vnode.props) {
+        for (const key in vnode.props) {
+          el.setAttribute(key, vnode.props[key]);
+        }
+      }
+      insert(el, container);
+    }
+
+    function patch(oldVnode, vnode, container) {
+      if (!oldVnode) {
+        mountElement(vnode, container);
+      } else {
+        //
+      }
+    }
+
+    function render(vnode, container) {
+      if (vnode) {
+        // newVnode 存在，将 oldVnode 和 newVnode 进行patch
+        patch(container._vnode, vnode, container);
+      } else {
+        // newVnode 不存在，并且oldVnode存在，说明是卸载操作（unmount）
+        if (container._vnode) {
+          container.innerHTML = "";
+        }
+      }
+      container._vnode = vnode;
+    }
+
+    return { render };
+  }
+
+  //-----------------------------------------------------------------------------
+
+  const browserAPI = {
+    createElement(tag) {
+      return document.createElement(tag);
+    },
+    setElementText(el, text) {
+      el.textContent = text;
+    },
+    insert(el, parent, anchor = null) {
+      parent.insertBefore(el, anchor);
+    },
+  };
+
+  const renderer = createRenderer(browserAPI);
+  const vnode = {
+    type: "div",
+    props: {
+      id: "foo",
+    },
+    children: [
+      {
+        type: "div",
+        children: "hello world",
+        props: {
+          id: "div_id",
+          title: "我是 div",
+        },
+      },
+      {
+        type: "div",
+        props: {
+          id: "single_div_id",
+        },
+        children: [
+          {
+            type: "span",
+            children: "span label",
+          },
+        ],
+      },
+    ],
+  };
+  renderer.render(vnode, document.getElementById("app"));
+</script>

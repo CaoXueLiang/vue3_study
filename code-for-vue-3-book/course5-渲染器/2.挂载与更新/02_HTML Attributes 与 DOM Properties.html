@@ -1,0 +1,119 @@
+<div id="app"></div>
+
+<!-- <div data-a="3" mmm="asdf" draggable="true"></div>
+<form id="aaa"></form>
+<input value="aaa" form="aaa" disabled=""/> -->
+
+<script>
+  function createRenderer(options) {
+    const { createElement, setElementText, insert } = options;
+
+    // 是否使用 DOM properties 的设置方式
+    function shouldSetAsProps(el, key, value) {
+      if (key === "form" && el.tagName === "INPUT") {
+        return false;
+      }
+      return key in el;
+    }
+
+    function mountElement(vnode, container) {
+      const el = createElement(vnode.type);
+      if (typeof vnode.children === "string") {
+        setElementText(el, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        vnode.children.forEach((element) => {
+          patch(null, element, el);
+        });
+      }
+
+      if (vnode.props) {
+        for (const key in vnode.props) {
+          const value = vnode.props[key];
+          if (shouldSetAsProps(el, key, value)) {
+            if (typeof el[key] === "boolean" && value === "") {
+              el[key] = true;
+            } else {
+              el[key] = value;
+            }
+          } else {
+            el.setAttribute(key, vnode.props[key]);
+          }
+        }
+      }
+      insert(el, container);
+    }
+
+    function patch(oldVnode, vnode, container) {
+      if (!oldVnode) {
+        mountElement(vnode, container);
+      } else {
+        //
+      }
+    }
+
+    function render(vnode, container) {
+      if (vnode) {
+        // newVnode 存在，将 oldVnode 和 newVnode 进行patch
+        patch(container._vnode, vnode, container);
+      } else {
+        // newVnode 不存在，并且oldVnode存在，说明是卸载操作（unmount）
+        if (container._vnode) {
+          container.innerHTML = "";
+        }
+      }
+      container._vnode = vnode;
+    }
+
+    return { render };
+  }
+
+  //-----------------------------------------------------------------------------
+
+  const browserAPI = {
+    createElement(tag) {
+      return document.createElement(tag);
+    },
+    setElementText(el, text) {
+      el.textContent = text;
+    },
+    insert(el, parent, anchor = null) {
+      parent.insertBefore(el, anchor);
+    },
+  };
+
+  const renderer = createRenderer(browserAPI);
+  const vnode = {
+    type: "div",
+    props: {
+      id: "foo",
+    },
+    children: [
+      {
+        type: "div",
+        children: "hello world",
+        props: {
+          "data-a": "3",
+          mmm: "asdf",
+          draggable: true,
+        },
+      },
+      {
+        type: "form",
+        props: {
+          id: "aaa",
+        },
+        children: null,
+      },
+      {
+        type: "input",
+        props: {
+          value: "aaa",
+          form: "aaa",
+          disabled: "",
+        },
+        children: null,
+      },
+    ],
+  };
+  renderer.render(vnode, document.getElementById("app"));
+</script>
