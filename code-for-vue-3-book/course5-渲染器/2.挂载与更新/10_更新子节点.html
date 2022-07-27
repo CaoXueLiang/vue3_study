@@ -1,0 +1,196 @@
+<div id="app"></div>
+<script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
+
+<script>
+  function shouldSetAsProps(el, key, value) {
+    if (key === "form" && el.tagName === "INPUT") {
+      return false;
+    }
+    return key in el;
+  }
+
+  function createRenderer(options) {
+    const { createElement, setElementText, insert, patchProps } = options;
+
+    function mountElement(vnode, container) {
+      const el = (vnode.el = createElement(vnode.type));
+      if (typeof vnode.children === "string") {
+        setElementText(el, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        vnode.children.forEach((element) => {
+          patch(null, element, el);
+        });
+      }
+
+      if (vnode.props) {
+        for (const key in vnode.props) {
+          patchProps(el, key, null, vnode.props[key]);
+        }
+      }
+      insert(el, container);
+    }
+
+    function patchElement(oldVnode, vnode) {
+      const el = (vnode.el = oldVnode.el);
+      const oldProps = oldVnode.props;
+      const newProps = vnode.props;
+
+      for (const key in newProps) {
+        if (newProps[key] !== oldProps[key]) {
+          patchProps(el, key, oldProps[key], newProps[key]);
+        }
+      }
+
+      for (const key in oldProps) {
+        if (!(key in newProps)) {
+          patchProps(el, key, oldProps[key], null);
+        }
+      }
+
+      patchChildren(oldVnode, vnode, el);
+    }
+
+    /**
+     * 一个元素有三种子节点
+     * 1. 没有子节点 node.children = null
+     * 2. 文本子节点 node.children = 'text'
+     * 3. 一组子节点 node.children = []
+     */
+    function patchChildren(oldVnode, vnode, container) {
+      if (typeof vnode.children === "string") {
+        if (Array.isArray(oldVnode.children)) {
+          oldVnode.children.forEach((c) => unmount(c));
+        }
+        setElementText(container, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        if (Array.isArray(oldVnode.children)) {
+          oldVnode.children.forEach((c) => unmount(c));
+          vnode.children.forEach((c) => patch(null, c, container));
+        } else {
+          setElementText(container, "");
+          vnode.children.forEach((c) => patch(null, c, container));
+        }
+      } else {
+        if (Array.isArray(oldVnode.children)) {
+          oldVnode.children.forEach((c) => unmount(c));
+        } else if (typeof oldVnode.children === "string") {
+          setElementText(container, "");
+        } else {
+          // 此时 oldVnode 也没有子节点，不用做任何处理
+        }
+      }
+    }
+
+    function unmount(vnode) {
+      const parent = vnode.el.parentNode;
+      parent && parent.removeChild(vnode.el);
+    }
+
+    function patch(oldVnode, vnode, container) {
+      // 先判断 oldVnode 是否存在，并且oldVnode和vnode的类型不同则卸载oldVnode
+      // 先将旧dom移除，然后在添加新的dom
+      if (oldVnode && oldVnode.type !== vnode.type) {
+        unmount(oldVnode);
+        oldVnode = null;
+      }
+
+      const { type } = vnode;
+      // type === 'string' 说明是普通标签元素
+      // type === 'object' 说明是组件
+      if (typeof type === "string") {
+        if (!oldVnode) {
+          mountElement(vnode, container);
+        } else {
+          patchElement(oldVnode, vnode);
+        }
+      } else if (typeof type === "object") {
+        //组件
+      }
+    }
+
+    function render(vnode, container) {
+      if (vnode) {
+        // newVnode 存在，将 oldVnode 和 newVnode 进行patch
+        patch(container._vnode, vnode, container);
+      } else {
+        // newVnode 不存在，并且oldVnode存在，说明是卸载操作（unmount）
+        if (container._vnode) {
+          unmount(container._vnode);
+        }
+      }
+      container._vnode = vnode;
+    }
+
+    return { render };
+  }
+
+  //-----------------------------------------------------------------------------
+
+  const browserAPI = {
+    createElement(tag) {
+      return document.createElement(tag);
+    },
+    setElementText(el, text) {
+      el.textContent = text;
+    },
+    insert(el, parent, anchor = null) {
+      parent.insertBefore(el, anchor);
+    },
+    patchProps(el, key, preValue, nextValue) {
+      if (/^on/.test(key)) {
+        const invokers = el._vei || (el._vei = {});
+        let invoker = invokers[key];
+        const eventName = key.slice(2).toLowerCase();
+        if (nextValue) {
+          if (!invoker) {
+            invoker = el._vei[key] = (e) => {
+              // e.timeStamp 事件触发时间
+              // invoker.attached 事件绑定时间
+              if (e.timeStamp < invoker.attached) {
+                return;
+              }
+              if (Array.isArray(invoker.value)) {
+                invoker.value.forEach((fn) => fn(e));
+              } else {
+                invoker.value(e);
+              }
+            };
+            invoker.value = nextValue;
+            invoker.attached = performance.now();
+            el.addEventListener(eventName, invoker);
+          } else {
+            invoker.value = nextValue;
+          }
+        } else if (invoker) {
+          el.removeEventListener(eventName, invoker);
+        }
+      } else if (key === "class") {
+        el.className = nextValue || "";
+      } else if (shouldSetAsProps(el, key, nextValue)) {
+        if (typeof el[key] === "boolean" && nextValue === "") {
+          el[key] = true;
+        } else {
+          el[key] = nextValue;
+        }
+      } else {
+        el.setAttribute(key, nextValue);
+      }
+    },
+  };
+
+  const renderer = createRenderer(browserAPI);
+
+  const oldVnode = {
+    type: "div",
+    children: "text",
+  };
+  renderer.render(oldVnode, document.getElementById("app"));
+
+  const newVnode = {
+    type: "div",
+    children: null,
+  };
+  setTimeout(() => {
+    renderer.render(newVnode, document.getElementById("app"));
+  }, 2000);
+</script>
