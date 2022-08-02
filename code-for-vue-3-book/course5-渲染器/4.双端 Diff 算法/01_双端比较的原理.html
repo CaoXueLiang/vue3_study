@@ -72,60 +72,7 @@
         }
         setElementText(container, vnode.children);
       } else if (Array.isArray(vnode.children)) {
-        const oldChildren = oldVnode.children;
-        const newChildren = vnode.children;
-
-        let lastIndex = 0; //记录新的vnode，在oldVnode children 中的索引。
-        let find = false;
-        // 遍历新的 children
-        for (let index = 0; index < newChildren.length; index++) {
-          const newVnodeElement = newChildren[index];
-          // 遍历旧的 children
-          for (let j = 0; j < oldChildren.length; j++) {
-            const oldVnodeElement = oldChildren[j];
-            // 如果找到了具有相同 key 值的两个节点，则调用 `patch` 函数更新之
-            if (newVnodeElement.key === oldVnodeElement.key) {
-              find = true;
-              patch(oldVnodeElement, newVnodeElement, container);
-              if (j < lastIndex) {
-                // 需要移动 (如果本次在oldChildren寻找到的索引，小于之前寻找到的最大的索引 lastIndex。则说明是需要移动的)
-                const preVnode = newChildren[index - 1];
-                if (preVnode) {
-                  const anchor = preVnode.el.nextSibling;
-                  insert(newVnodeElement.el, container, anchor);
-                }
-              } else {
-                // 更新 lastIndex
-                lastIndex = j;
-              }
-              break;
-            }
-          }
-
-          if (!find) {
-            const prevVNode = newChildren[index - 1];
-            let anchor = null;
-            if (prevVNode) {
-              anchor = prevVNode.el.nextSibling;
-            } else {
-              anchor = container.firstChild;
-            }
-            patch(null, newVnodeElement, container, anchor);
-          }
-        }
-
-        // 遍历旧节点，移除不存在的节点
-        for (let index = 0; index < oldChildren.length; index++) {
-          const oldVnodeElement = oldChildren[index];
-          // 拿着旧 vnode 去新的 children 中寻找相同的节点，看是否存在
-          const has = newChildren.find(
-            (item) => item.key === oldVnodeElement.key
-          );
-          if (!has) {
-            // 如果没有找到相同的节点，则删除
-            unmount(oldVnodeElement);
-          }
-        }
+        patchKeyedChildren(oldVnode, vnode, container);
       } else {
         if (Array.isArray(oldVnode.children)) {
           oldVnode.children.forEach((c) => unmount(c));
@@ -133,6 +80,51 @@
           setElementText(container, "");
         } else {
           // 此时 oldVnode 也没有子节点，不用做任何处理
+        }
+      }
+    }
+
+    /**
+     * 1.新前旧前
+     * 2.新后旧后
+     * 3.新后旧前
+     * 4.新前旧后
+     */
+    function patchKeyedChildren(oldVnode, vnode, container) {
+      const oldChildren = oldVnode.children;
+      const newChildren = vnode.children;
+
+      let oldStartIdx = 0;
+      let oldEndIdx = oldChildren.length - 1;
+      let newStartIdx = 0;
+      let newEndIdx = newChildren.length - 1;
+
+      let oldStartVnode = oldChildren[oldStartIdx];
+      let oldEndVnode = oldChildren[oldEndIdx];
+      let newStartVnode = newChildren[newStartIdx];
+      let newEndVnode = newChildren[newEndIdx];
+
+      while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+        if (newStartVnode.key === oldStartVnode.key) {
+          patch(oldStartVnode, newStartVnode, container);
+          oldStartVnode = oldChildren[++oldStartIdx];
+          newStartVnode = newChildren[++newStartIdx];
+        } else if (newEndVnode.key === oldEndVnode.key) {
+          patch(oldEndVnode, newEndVnode, container);
+          newEndVnode = newChildren[--newEndIdx];
+          oldEndVnode = oldChildren[--oldEndIdx];
+        } else if (newEndVnode.key === oldStartVnode.key) {
+          patch(oldStartVnode, newEndVnode, container);
+          insert(oldStartVnode.el, container, newEndVnode.el.nextSibling);
+
+          newEndVnode = newChildren[--newEndIdx];
+          oldStartVnode = oldChildren[++oldStartIdx];
+        } else if (newStartVnode.key === oldEndVnode.key) {
+          patch(oldEndVnode, newStartVnode, container);
+          insert(oldEndVnode.el, container, oldStartVnode.el);
+
+          newStartVnode = newChildren[++newStartIdx];
+          oldEndVnode = oldChildren[--oldEndIdx];
         }
       }
     }
@@ -289,7 +281,8 @@
     children: [
       { type: "p", children: "1", key: 1 },
       { type: "p", children: "2", key: 2 },
-      { type: "p", children: "hello", key: 3 },
+      { type: "p", children: "3", key: 3 },
+      { type: "p", children: "4", key: 4 },
     ],
   };
   renderer.render(VNode1, document.querySelector("#app"));
@@ -297,13 +290,15 @@
   const VNode2 = {
     type: "div",
     children: [
-      { type: "p", children: "1", key: 1 },
+      { type: "p", children: "4", key: 4 },
       { type: "p", children: "2", key: 2 },
+      { type: "p", children: "1", key: 1 },
+      { type: "p", children: "3", key: 3 },
     ],
   };
 
   setTimeout(() => {
     console.log("update");
     renderer.render(VNode2, document.querySelector("#app"));
-  }, 400);
+  }, 1000);
 </script>
