@@ -1,0 +1,331 @@
+<div id="app"></div>
+<script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
+
+<script>
+  function shouldSetAsProps(el, key, value) {
+    if (key === "form" && el.tagName === "INPUT") {
+      return false;
+    }
+    return key in el;
+  }
+
+  function createRenderer(options) {
+    const {
+      createElement,
+      setElementText,
+      createText,
+      setText,
+      createComment,
+      setComment,
+      insert,
+      patchProps,
+    } = options;
+
+    function mountElement(vnode, container, anchor) {
+      const el = (vnode.el = createElement(vnode.type));
+      if (typeof vnode.children === "string") {
+        setElementText(el, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        vnode.children.forEach((element) => {
+          patch(null, element, el);
+        });
+      }
+
+      if (vnode.props) {
+        for (const key in vnode.props) {
+          patchProps(el, key, null, vnode.props[key]);
+        }
+      }
+      insert(el, container, anchor);
+    }
+
+    function patchElement(oldVnode, vnode) {
+      const el = (vnode.el = oldVnode.el);
+      const oldProps = oldVnode.props;
+      const newProps = vnode.props;
+
+      for (const key in newProps) {
+        if (newProps[key] !== oldProps[key]) {
+          patchProps(el, key, oldProps[key], newProps[key]);
+        }
+      }
+
+      for (const key in oldProps) {
+        if (!(key in newProps)) {
+          patchProps(el, key, oldProps[key], null);
+        }
+      }
+
+      patchChildren(oldVnode, vnode, el);
+    }
+
+    /**
+     * 一个元素有三种子节点
+     * 1. 没有子节点 node.children = null
+     * 2. 文本子节点 node.children = 'text'
+     * 3. 一组子节点 node.children = []
+     */
+    function patchChildren(oldVnode, vnode, container) {
+      if (typeof vnode.children === "string") {
+        if (Array.isArray(oldVnode.children)) {
+          oldVnode.children.forEach((c) => unmount(c));
+        }
+        setElementText(container, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        patchKeyedChildren(oldVnode, vnode, container);
+      } else {
+        if (Array.isArray(oldVnode.children)) {
+          oldVnode.children.forEach((c) => unmount(c));
+        } else if (typeof oldVnode.children === "string") {
+          setElementText(container, "");
+        } else {
+          // 此时 oldVnode 也没有子节点，不用做任何处理
+        }
+      }
+    }
+
+    /**
+     * 1.新前旧前
+     * 2.新后旧后
+     * 3.新后旧前
+     * 4.新前旧后
+     */
+    function patchKeyedChildren(oldVnode, vnode, container) {
+      const oldChildren = oldVnode.children;
+      const newChildren = vnode.children;
+
+      let oldStartIdx = 0;
+      let oldEndIdx = oldChildren.length - 1;
+      let newStartIdx = 0;
+      let newEndIdx = newChildren.length - 1;
+
+      let oldStartVnode = oldChildren[oldStartIdx];
+      let oldEndVnode = oldChildren[oldEndIdx];
+      let newStartVnode = newChildren[newStartIdx];
+      let newEndVnode = newChildren[newEndIdx];
+
+      while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+        if (!oldStartVnode) {
+          oldStartVnode = oldChildren[++oldStartIdx];
+        } else if (!oldEndVnode) {
+          oldEndVnode = newChildren[--oldEndIdx];
+        } else if (newStartVnode.key === oldStartVnode.key) {
+          patch(oldStartVnode, newStartVnode, container);
+          oldStartVnode = oldChildren[++oldStartIdx];
+          newStartVnode = newChildren[++newStartIdx];
+        } else if (newEndVnode.key === oldEndVnode.key) {
+          patch(oldEndVnode, newEndVnode, container);
+          newEndVnode = newChildren[--newEndIdx];
+          oldEndVnode = oldChildren[--oldEndIdx];
+        } else if (newEndVnode.key === oldStartVnode.key) {
+          patch(oldStartVnode, newEndVnode, container);
+          insert(oldStartVnode.el, container, newEndVnode.el.nextSibling);
+
+          newEndVnode = newChildren[--newEndIdx];
+          oldStartVnode = oldChildren[++oldStartIdx];
+        } else if (newStartVnode.key === oldEndVnode.key) {
+          patch(oldEndVnode, newStartVnode, container);
+          insert(oldEndVnode.el, container, oldStartVnode.el);
+
+          newStartVnode = newChildren[++newStartIdx];
+          oldEndVnode = oldChildren[--oldEndIdx];
+        } else {
+          // 遍历旧 children, 试图寻找与 newStartVnode 拥有相同 key 值的元素
+          const idxInOld = oldChildren.findIndex(
+            (node) => node.key === newStartVnode.key
+          );
+          if (idxInOld > 0) {
+            // 如果在旧的子节点中能找到
+            const vnodeToMove = oldChildren[idxInOld];
+            patch(vnodeToMove, newStartVnode, container);
+            insert(vnodeToMove.el, container, oldStartVnode.el);
+            oldChildren[idxInOld] = undefined;
+          } else {
+            // 新增元素
+            patch(null, newStartVnode, container, oldStartVnode.el);
+          }
+
+          newStartVnode = newChildren[++newStartIdx];
+        }
+      }
+
+      if (oldEndIdx < oldStartIdx && newStartIdx <= newEndIdx) {
+        // 添加新节点
+        for (let index = newStartIdx; index <= newEndIdx; index++) {
+          patch(null, newChildren[index], container, oldStartVnode.el);
+        }
+      }
+    }
+
+    function unmount(vnode) {
+      if (vnode.type === Fragment) {
+        vnode.children.forEach((c) => unmount(c));
+        return;
+      }
+      const parent = vnode.el.parentNode;
+      parent && parent.removeChild(vnode.el);
+    }
+
+    function patch(oldVnode, vnode, container, anchor) {
+      // 先判断 oldVnode 是否存在，并且oldVnode和vnode的类型不同则卸载oldVnode
+      // 先将旧dom移除，然后在添加新的dom
+      if (oldVnode && oldVnode.type !== vnode.type) {
+        unmount(oldVnode);
+        oldVnode = null;
+      }
+
+      const { type } = vnode;
+
+      if (typeof type === "string") {
+        // 标签元素节点
+        if (!oldVnode) {
+          mountElement(vnode, container, anchor);
+        } else {
+          patchElement(oldVnode, vnode);
+        }
+      } else if (type === Text) {
+        // 文本节点
+        if (!oldVnode) {
+          const el = (vnode.el = createText(vnode.children));
+          insert(el, container);
+        } else {
+          const el = (vnode.el = oldVnode.el);
+          if (vnode.children !== oldVnode.children) {
+            setText(el, vnode.children);
+          }
+        }
+      } else if (type === Comment) {
+        // 注释节点
+        if (!oldVnode) {
+          const el = (vnode.el = createComment(vnode.children));
+          insert(el, container);
+        } else {
+          const el = (vnode.el = oldVnode.el);
+          if (vnode.children !== oldVnode.children) {
+            setComment(el, vnode.children);
+          }
+        }
+      } else if (type === Fragment) {
+        if (!oldVnode) {
+          vnode.children.forEach((c) => patch(null, c, container));
+        } else {
+          patchChildren(oldVnode, vnode, container);
+        }
+      } else if (typeof type === "object") {
+        //组件
+      }
+    }
+
+    function render(vnode, container) {
+      if (vnode) {
+        // newVnode 存在，将 oldVnode 和 newVnode 进行patch
+        patch(container._vnode, vnode, container);
+      } else {
+        // newVnode 不存在，并且oldVnode存在，说明是卸载操作（unmount）
+        if (container._vnode) {
+          unmount(container._vnode);
+        }
+      }
+      container._vnode = vnode;
+    }
+
+    return { render };
+  }
+
+  //-----------------------------------------------------------------------------
+
+  const browserAPI = {
+    createElement(tag) {
+      return document.createElement(tag);
+    },
+    setElementText(el, text) {
+      el.textContent = text;
+    },
+    insert(el, parent, anchor = null) {
+      parent.insertBefore(el, anchor);
+    },
+    createText(text) {
+      return document.createTextNode(text);
+    },
+    createComment(text) {
+      return document.createComment(text);
+    },
+    setText(el, text) {
+      el.nodeValue = text;
+    },
+    setComment(el, text) {
+      el.nodeValue = text;
+    },
+    patchProps(el, key, preValue, nextValue) {
+      if (/^on/.test(key)) {
+        const invokers = el._vei || (el._vei = {});
+        let invoker = invokers[key];
+        const eventName = key.slice(2).toLowerCase();
+        if (nextValue) {
+          if (!invoker) {
+            invoker = el._vei[key] = (e) => {
+              // e.timeStamp 事件触发时间
+              // invoker.attached 事件绑定时间
+              if (e.timeStamp < invoker.attached) {
+                return;
+              }
+              if (Array.isArray(invoker.value)) {
+                invoker.value.forEach((fn) => fn(e));
+              } else {
+                invoker.value(e);
+              }
+            };
+            invoker.value = nextValue;
+            invoker.attached = performance.now();
+            el.addEventListener(eventName, invoker);
+          } else {
+            invoker.value = nextValue;
+          }
+        } else if (invoker) {
+          el.removeEventListener(eventName, invoker);
+        }
+      } else if (key === "class") {
+        el.className = nextValue || "";
+      } else if (shouldSetAsProps(el, key, nextValue)) {
+        if (typeof el[key] === "boolean" && nextValue === "") {
+          el[key] = true;
+        } else {
+          el[key] = nextValue;
+        }
+      } else {
+        el.setAttribute(key, nextValue);
+      }
+    },
+  };
+
+  const renderer = createRenderer(browserAPI);
+
+  const Text = Symbol(); //文本节点
+  const Comment = Symbol(); //注释节点
+  const Fragment = Symbol(); //fragement节点
+
+  const VNode1 = {
+    type: "div",
+    children: [
+      { type: "p", children: "1", key: 1 },
+      { type: "p", children: "2", key: 2 },
+      { type: "p", children: "3", key: 3 },
+    ],
+  };
+  renderer.render(VNode1, document.querySelector("#app"));
+
+  const VNode2 = {
+    type: "div",
+    children: [
+      { type: "p", children: "4", key: 4 },
+      { type: "p", children: "1", key: 1 },
+      { type: "p", children: "2", key: 2 },
+      { type: "p", children: "3", key: 3 },
+    ],
+  };
+
+  setTimeout(() => {
+    console.log("update");
+    renderer.render(VNode2, document.querySelector("#app"));
+  }, 1000);
+</script>
