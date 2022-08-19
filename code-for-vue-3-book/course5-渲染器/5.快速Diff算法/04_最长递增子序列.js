@@ -49,8 +49,18 @@ function lengthOfLIS(nums) {
 console.log(lengthOfLIS(nums));
 
 const anotherNums = [10, 9, 2, 5, 3, 7, 101, 18, 4, 8, 6, 12];
+
 /***
  * 方法二：贪心 + 二分查找
+ *
+ * 创建一张表格（矩阵），表格的行数为数组的元素个数，和列数可以 “动态” 方式追加
+ * 当数组是严格上升数组的时候，这张表格的下三角部分会被填满。
+ * 每一行记录一个 “上升子序列”，规则如下：
+ * 第1行记录长度为1的一个上升子序列
+ * 第2行记录长度为2的一个上升子序列
+ * ......
+ * 第n行记录长度为n的一个上升子序列
+ * 这些子序列的共同特点是：它们的 “结尾” 是所有相同长度的 “上升子序列” 里面最小的
  *
  */
 
@@ -69,7 +79,7 @@ function lengthOfLIS_fast(nums) {
 
   for (let i = 1; i < len; i++) {
     // 【逻辑1】比 tail 数组实际有效的末尾的那个元素还大
-    if (nums[i] > nums[end]) {
+    if (nums[i] > tail[end]) {
       // 直接添加在那个元素的后面，所以 end 先加 1
       end++;
       tail[end] = nums[i];
@@ -79,15 +89,16 @@ function lengthOfLIS_fast(nums) {
       let left = 0;
       let right = end;
       while (left < right) {
-        // 选左中位数不是偶然，而是有原因的，原因请见 leetCode 第 35 题题解
-        // let mid = left + (right - left) / 2
-        let mid = left + ((right - left) >>> 1);
+        let mid = parseInt(left + (right - left) / 2);
         if (tail[mid] < nums[i]) {
+          // 下一轮搜索的区间是 [mid + 1..right]
           left = mid + 1;
         } else {
+          // 下一轮搜索的区间是 [left..mid]
           right = mid;
         }
       }
+
       // 走到这里是因为【逻辑1】的反面，因此一定能找到第一个大于等于 num[i] 的元素
       // 因此，无需再单独判断
       tail[left] = nums[i];
@@ -102,14 +113,7 @@ function lengthOfLIS_fast(nums) {
 
 function printArray(num, tail) {
   console.log(`当前数字：${num}`);
-  console.log(`\t 当前 tail 数组：`);
-  let len = tail.length;
-  for (let i = 0; i < len; i++) {
-    if (tail[i] === 0) {
-      break;
-    }
-    console.log(tail[i] + ",");
-  }
+  console.log(`当前 tail 数组：`, tail);
 }
 
 console.log(lengthOfLIS_fast(anotherNums));
