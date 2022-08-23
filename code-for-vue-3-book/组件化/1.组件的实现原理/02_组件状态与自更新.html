@@ -1,0 +1,507 @@
+<div id="app"></div>
+<div id="anotherApp"></div>
+<script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
+<script>
+  const {
+    reactive,
+    ref,
+    effect,
+    shallowReactive,
+    shallowReadonly,
+    shallowRef,
+  } = VueReactivity;
+
+  function shouldSetAsProps(el, key, value) {
+    if (key === "form" && el.tagName === "INPUT") {
+      return false;
+    }
+    return key in el;
+  }
+
+  function createRenderer(options) {
+    const {
+      createElement,
+      setElementText,
+      createText,
+      setText,
+      createComment,
+      setComment,
+      insert,
+      patchProps,
+    } = options;
+
+    function mountElement(vnode, container, anchor) {
+      const el = (vnode.el = createElement(vnode.type));
+      if (typeof vnode.children === "string") {
+        setElementText(el, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        vnode.children.forEach((element) => {
+          patch(null, element, el);
+        });
+      }
+
+      if (vnode.props) {
+        for (const key in vnode.props) {
+          patchProps(el, key, null, vnode.props[key]);
+        }
+      }
+      insert(el, container, anchor);
+    }
+
+    function patchElement(oldVnode, vnode) {
+      const el = (vnode.el = oldVnode.el);
+      const oldProps = oldVnode.props;
+      const newProps = vnode.props;
+
+      for (const key in newProps) {
+        if (newProps[key] !== oldProps[key]) {
+          patchProps(el, key, oldProps[key], newProps[key]);
+        }
+      }
+
+      for (const key in oldProps) {
+        if (!(key in newProps)) {
+          patchProps(el, key, oldProps[key], null);
+        }
+      }
+
+      patchChildren(oldVnode, vnode, el);
+    }
+
+    /**
+     * 一个元素有三种子节点
+     * 1. 没有子节点 node.children = null
+     * 2. 文本子节点 node.children = 'text'
+     * 3. 一组子节点 node.children = []
+     */
+    function patchChildren(oldVnode, vnode, container) {
+      if (typeof vnode.children === "string") {
+        if (Array.isArray(oldVnode.children)) {
+          oldVnode.children.forEach((c) => unmount(c));
+        }
+        setElementText(container, vnode.children);
+      } else if (Array.isArray(vnode.children)) {
+        patchKeyedChildren(oldVnode, vnode, container);
+      } else {
+        if (Array.isArray(oldVnode.children)) {
+          oldVnode.children.forEach((c) => unmount(c));
+        } else if (typeof oldVnode.children === "string") {
+          setElementText(container, "");
+        } else {
+          // 此时 oldVnode 也没有子节点，不用做任何处理
+        }
+      }
+    }
+
+    /**
+     * 快速diff算法
+     */
+    function patchKeyedChildren(old_vnode, vnode, container) {
+      const newChildren = vnode.children;
+      const oldChildren = old_vnode.children;
+
+      // 更新相同的前缀节点
+      // 索引 j 指向新旧两组子节点的开头
+      let j = 0;
+      let oldVnode = oldChildren[j];
+      let newVnode = newChildren[j];
+      // while 循环向后遍历，直到遇到拥有不同 key 值的节点为止
+      while (oldVnode.key === newVnode.key) {
+        // 调用 patch 函数更新
+        patch(oldVnode, newVnode, container);
+        j++;
+        oldVnode = oldChildren[j];
+        newVnode = newChildren[j];
+      }
+
+      // 更新相同的后缀节点
+      // 索引 oldEnd 指向旧的一组子节点的最后一个节点
+      let oldEnd = oldChildren.length - 1;
+      // 索引 newEnd 指向新的一组子节点的最后一个节点
+      let newEnd = newChildren.length - 1;
+
+      oldVnode = oldChildren[oldEnd];
+      newVnode = newChildren[newEnd];
+
+      // while 循环向前遍历，直到遇到拥有不同 key 值的节点为止
+      while (oldVnode.key === newVnode.key) {
+        // 调用 patch 函数更新
+        patch(oldVnode, newVnode, container);
+        oldEnd--;
+        newEnd--;
+        oldVnode = oldChildren[oldEnd];
+        newVnode = newChildren[newEnd];
+      }
+
+      // 满足条件，则说明 j -> newEnd 之间的节点应作为新节点插入
+      if (j > oldEnd && j <= newEnd) {
+        // 锚点的索引
+        const anchorIndex = newEnd + 1;
+        // 锚点元素
+        const anchor =
+          anchorIndex < newChildren.length ? newChildren[anchorIndex].el : null;
+        // 采用 while 循环，调用 patch 函数逐个挂载新增的节点
+        while (j <= newEnd) {
+          patch(null, newChildren[j++], container, anchor);
+        }
+      } else if (j > newEnd && j <= oldEnd) {
+        // j -> oldEnd 之间的节点应该被卸载
+        while (j <= oldEnd) {
+          unmount(oldChildren[j++]);
+        }
+      } else {
+        // 构造 source 数组
+        // 新的一组子节点中剩余未处理节点的数量
+        const count = newEnd - j + 1;
+        const source = new Array(count);
+        source.fill(-1);
+
+        const oldStart = j;
+        const newStart = j;
+        let moved = false; // 是否需要移动
+        let pos = 0; // 保存旧节点在新子节点中的最大索引
+        const keyIndex = {}; // 建立 key 和 index 的索引表
+        for (let i = newStart; i <= newEnd; i++) {
+          keyIndex[newChildren[i].key] = i;
+        }
+        // 代表已经更新的节点数量。已经更新过的节点数量应该小于新的一组子节点中需要更新的节点数量
+        // 一旦前者超过后者，则说明有多余的节点，我们应该将它们卸载
+        let patched = 0;
+        for (let i = oldStart; i <= oldEnd; i++) {
+          oldVnode = oldChildren[i];
+          if (patched < count) {
+            const k = keyIndex[oldVnode.key];
+            if (typeof k !== "undefined") {
+              newVnode = newChildren[k];
+              patch(oldVnode, newVnode, container);
+              patched++;
+              source[k - newStart] = i;
+              // 判断是否需要移动
+              if (k < pos) {
+                moved = true;
+              } else {
+                pos = k;
+              }
+            } else {
+              // 没找到
+              unmount(oldVnode);
+            }
+          } else {
+            unmount(oldVnode);
+          }
+        }
+
+        if (moved) {
+          const seq = lis(source); // 此时的结果为 [0,1] （对应的是索引）  source = [2, 3, 1, -1]
+
+          // s 指向最长递增子序列的最后一个值
+          let s = seq.length - 1;
+          let i = count - 1;
+          for (i; i >= 0; i--) {
+            if (source[i] === -1) {
+              // 说明索引为 i 的节点是全新的节点，应该将其挂载
+              // 该节点在新 children 中的真实位置索引
+              const pos = i + newStart;
+              const newVnode = newChildren[pos];
+              // 该节点下一个节点的位置索引
+              const nextPos = pos + 1;
+              // 锚点
+              const anchor =
+                nextPos < newChildren.length ? newChildren[nextPos].el : null;
+              // 挂载
+              patch(null, newVnode, container, anchor);
+            } else if (i !== seq[j]) {
+              // 说明该节点需要移动
+              // 该节点在新的一组子节点中的真实位置索引
+              const pos = i + newStart;
+              const newVnode = newChildren[pos];
+              // 该节点下一个节点的位置索引
+              const nextPos = pos + 1;
+              // 锚点
+              const anchor =
+                nextPos < newChildren.length ? newChildren[nextPos].el : null;
+              // 移动
+              insert(newVnode.el, container, anchor);
+            } else {
+              // 当 i=== seq[j] 时，说明该位置的节点不需要移动
+              // 并让 s 指向下一个位置
+              s--;
+            }
+          }
+        }
+      }
+    }
+
+    function unmount(vnode) {
+      if (vnode.type === Fragment) {
+        vnode.children.forEach((c) => unmount(c));
+        return;
+      }
+      const parent = vnode.el.parentNode;
+      parent && parent.removeChild(vnode.el);
+    }
+
+    function patch(oldVnode, vnode, container, anchor) {
+      // 先判断 oldVnode 是否存在，并且oldVnode和vnode的类型不同则卸载oldVnode
+      // 先将旧dom移除，然后在添加新的dom
+      if (oldVnode && oldVnode.type !== vnode.type) {
+        unmount(oldVnode);
+        oldVnode = null;
+      }
+
+      const { type } = vnode;
+
+      if (typeof type === "string") {
+        // 标签元素节点
+        if (!oldVnode) {
+          mountElement(vnode, container, anchor);
+        } else {
+          patchElement(oldVnode, vnode);
+        }
+      } else if (type === Text) {
+        // 文本节点
+        if (!oldVnode) {
+          const el = (vnode.el = createText(vnode.children));
+          insert(el, container);
+        } else {
+          const el = (vnode.el = oldVnode.el);
+          if (vnode.children !== oldVnode.children) {
+            setText(el, vnode.children);
+          }
+        }
+      } else if (type === Comment) {
+        // 注释节点
+        if (!oldVnode) {
+          const el = (vnode.el = createComment(vnode.children));
+          insert(el, container);
+        } else {
+          const el = (vnode.el = oldVnode.el);
+          if (vnode.children !== oldVnode.children) {
+            setComment(el, vnode.children);
+          }
+        }
+      } else if (type === Fragment) {
+        if (!oldVnode) {
+          vnode.children.forEach((c) => patch(null, c, container));
+        } else {
+          patchChildren(oldVnode, vnode, container);
+        }
+      } else if (typeof type === "object" || typeof type === "function") {
+        //组件
+        if (!oldVnode) {
+          mountComponent(vnode, container, anchor);
+        } else {
+          console.log("----patchComponent---");
+        }
+      }
+    }
+
+    // 任务缓存队列，用一个 Set 数据结构来表示，这样就可以自动对任务进行去重
+    const queue = new Set();
+    // 一个标志，代表是否正在刷新任务队列
+    let isFlushing = false;
+    // 创建一个立即 resolve 的 promise 实例
+    const p = Promise.resolve();
+
+    // 调度器的主要函数，用来将一个任务添加到缓冲队列中，并开始刷新队列
+    function queueJob(job) {
+      queue.add(job);
+      if (!isFlushing) {
+        isFlushing = true;
+        // 在微任务中刷新缓冲队列
+        p.then(() => {
+          try {
+            queue.forEach((job) => job());
+          } finally {
+            isFlushing = false;
+            queue.length = 0;
+          }
+        });
+      }
+    }
+
+    function mountComponent(vnode, container, anchor) {
+      const componentOptions = vnode.type;
+      const { render, data } = componentOptions;
+
+      // 调用 data 函数得到原始数据，并调用 reactive 函数将其包装为响应式数据
+      const state = reactive(data());
+      // 调用 render 函数时，将其 this 设置为 state，同时将 state 作为 render 函数的第一个参数传递
+      // 从而 render 函数内部可以通过 this 访问组件自身状态数据
+
+      effect(
+        () => {
+          const subTree = render.call(state, state);
+          console.log("--subTree--", subTree);
+          patch(null, subTree, container, anchor);
+        },
+        {
+          // 指定该副作用函数的调度器为 queueJob 即可
+          // 这样，当响应式数据发生变化时，副作用函数不会立即同步执行，而是被 queueJob 函数调度，最后在一个微任务中执行
+          scheduler: queueJob,
+        }
+      );
+    }
+
+    function render(vnode, container) {
+      if (vnode) {
+        // newVnode 存在，将 oldVnode 和 newVnode 进行patch
+        patch(container._vnode, vnode, container);
+      } else {
+        // newVnode 不存在，并且oldVnode存在，说明是卸载操作（unmount）
+        if (container._vnode) {
+          unmount(container._vnode);
+        }
+      }
+      container._vnode = vnode;
+    }
+
+    return { render };
+  }
+
+  // 最长递增子序列 算法题
+  function lis(arr) {
+    const p = arr.slice();
+    const result = [0];
+    let i, j, u, v, c;
+    const len = arr.length;
+    for (i = 0; i < len; i++) {
+      const arrI = arr[i];
+      if (arrI !== 0) {
+        j = result[result.length - 1];
+        if (arr[j] < arrI) {
+          p[i] = j;
+          result.push(i);
+          continue;
+        }
+        u = 0;
+        v = result.length - 1;
+        while (u < v) {
+          c = ((u + v) / 2) | 0;
+          if (arr[result[c]] < arrI) {
+            u = c + 1;
+          } else {
+            v = c;
+          }
+        }
+
+        if (arrI < arr[result[u]]) {
+          if (u > 0) {
+            p[i] = result[u - 1];
+          }
+          result[u] = i;
+        }
+      }
+    }
+
+    u = result.length;
+    v = result[u - 1];
+    while (u-- > 0) {
+      result[u] = v;
+      v = p[v];
+    }
+    return result;
+  }
+
+  //-----------------------------------------------------------------------------
+
+  const browserAPI = {
+    createElement(tag) {
+      return document.createElement(tag);
+    },
+    setElementText(el, text) {
+      el.textContent = text;
+    },
+    insert(el, parent, anchor = null) {
+      parent.insertBefore(el, anchor);
+    },
+    createText(text) {
+      return document.createTextNode(text);
+    },
+    createComment(text) {
+      return document.createComment(text);
+    },
+    setText(el, text) {
+      el.nodeValue = text;
+    },
+    setComment(el, text) {
+      el.nodeValue = text;
+    },
+    patchProps(el, key, preValue, nextValue) {
+      if (/^on/.test(key)) {
+        const invokers = el._vei || (el._vei = {});
+        let invoker = invokers[key];
+        const eventName = key.slice(2).toLowerCase();
+        if (nextValue) {
+          if (!invoker) {
+            invoker = el._vei[key] = (e) => {
+              // e.timeStamp 事件触发时间
+              // invoker.attached 事件绑定时间
+              if (e.timeStamp < invoker.attached) {
+                return;
+              }
+              if (Array.isArray(invoker.value)) {
+                invoker.value.forEach((fn) => fn(e));
+              } else {
+                invoker.value(e);
+              }
+            };
+            invoker.value = nextValue;
+            invoker.attached = performance.now();
+            el.addEventListener(eventName, invoker);
+          } else {
+            invoker.value = nextValue;
+          }
+        } else if (invoker) {
+          el.removeEventListener(eventName, invoker);
+        }
+      } else if (key === "class") {
+        el.className = nextValue || "";
+      } else if (shouldSetAsProps(el, key, nextValue)) {
+        if (typeof el[key] === "boolean" && nextValue === "") {
+          el[key] = true;
+        } else {
+          el[key] = nextValue;
+        }
+      } else {
+        el.setAttribute(key, nextValue);
+      }
+    },
+  };
+
+  const renderer = createRenderer(browserAPI);
+
+  const Text = Symbol(); //文本节点
+  const Comment = Symbol(); //注释节点
+  const Fragment = Symbol(); //fragement节点
+
+  //----------------------------------------- 测试案例 -----------------------------------------------
+  /**
+   * 一个组件必须要包含一个渲染函数，即render函数。并且渲染函数的返回值是 虚拟DOM。
+   *
+   * 在下面的这段代码中，我们约定用户必须使用 data 函数来定义组件自身的状态，同时可以在渲染函数中
+   * 通过 this 访问由 data函数返回的状态数据。
+   */
+
+  const MyComponent = {
+    name: "MyComponent",
+    // 用 data 函数来定义组件自身的状态
+    data() {
+      return {
+        foo: "hello world",
+      };
+    },
+    render() {
+      return {
+        type: "div",
+        children: `foo 的值是：${this.foo}`, // 在渲染函数内使用组件状态
+      };
+    },
+  };
+
+  const componentVnode = {
+    type: MyComponent,
+  };
+
+  renderer.render(componentVnode, document.querySelector("#app"));
+</script>
