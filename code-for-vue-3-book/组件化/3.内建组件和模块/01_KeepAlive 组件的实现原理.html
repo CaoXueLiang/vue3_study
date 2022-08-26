@@ -321,7 +321,12 @@
       } else if (typeof type === "object" || typeof type === "function") {
         //组件
         if (!oldVnode) {
-          mountComponent(vnode, container, anchor);
+          if (vnode.keepAlive) {
+            // 如果该组件已经被 keepAlive，则不会重新挂载它，而是会调用 _activate 来激活它
+            vnode.keepAliveInstance._avtivate(vnode, container, anchor);
+          } else {
+            mountComponent(vnode, container, anchor);
+          }
         } else {
           patchComponent(oldVnode, vnode, anchor);
         }
@@ -438,7 +443,24 @@
         slots,
         // 在组件实例中添加 mounted 数组，用来存储通过 onMounted 函数注册的生命周期钩子函数
         mounted: [],
+        // 只有 keepAlive 组件的实例下会有 keepAliveCtx 属性
+        keepAliveCtx: null,
       };
+
+      // 检查当前要挂载的组件是否是 keepAlive 组件
+      const iskeepAlive = vnode.type._isKeepAlive;
+      if (iskeepAlive) {
+        // 在 keepAlive 组件实例上添加 keepAliveCtx 对象
+        // 包含 move 和 createElement 两个函数
+        instance.keepAliveCtx = {
+          // move 函数用来移动一段 vnode
+          // 本质上是将组件渲染的内容移动到指定容器中，即隐藏容器中
+          move(vnode, container, anchor) {
+            insert(vnode.component.subTree.el, container, anchor);
+          },
+          createElement,
+        };
+      }
 
       // 定义emit函数，它接收两个参数
       // event：事件名称
@@ -862,6 +884,12 @@
   const KeepAlive = {
     // keepAlive 组件独有的属性，用作标识
     _isKeepAlive: true,
+    // 定义 include 和 exclude
+    // include 用来显示地配置应该被缓存的组件，而 exclude 用来配置不应该被缓存组件
+    props: {
+      include: RegExp,
+      exclude: RegExp,
+    },
     setup(props, { slots }) {
       // 创建一个缓存对象
       // key: vnode.type
@@ -878,6 +906,8 @@
 
       // keepAlive 组件的实例上会被添加两个内部函数，分别是 _deActivate 和 _activate
       // 这两个函数会在渲染器中被调用
+      // 失活的本质就是将组件所渲染的内容移动到隐藏容器中;
+      // 而激活的本质是将组件所渲染的内容从隐藏容器中搬运回原来的容器。
       instance._deActivate = (vnode) => {
         move(vnode, storageContainer);
       };
@@ -890,6 +920,16 @@
         let rawNode = slots.default();
         // 如果不是组件，直接渲染即可，因为非组件的虚拟节点无法被 KeepAlive
         if (typeof rawNode.type !== "object") {
+          return rawNode;
+        }
+
+        // 获取内部组件的 name，对name 进行匹配
+        const name = rawNode.type.name;
+        const notTestInclude = props.include && !props.include.test(name);
+        const testExculde = props.exclude && props.exclude.test(name);
+        // 如果 name 无法被include匹配，或者被exclude匹配
+        if (name && (notTestInclude || testExculde)) {
+          // 则直接渲染 “内部组件”，不对其进行后续的缓存操作
           return rawNode;
         }
 
