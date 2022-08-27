@@ -1,5 +1,6 @@
 <div id="app"></div>
-<div id="anotherApp"></div>
+<div id="container"></div>
+
 <script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
 <script>
   const {
@@ -121,8 +122,9 @@
       let j = 0;
       let oldVnode = oldChildren[j];
       let newVnode = newChildren[j];
+      const min = Math.min(oldChildren.length, newChildren.length);
       // while 循环向后遍历，直到遇到拥有不同 key 值的节点为止
-      while (oldVnode.key === newVnode.key) {
+      while (j < min && oldVnode.key === newVnode.key) {
         // 调用 patch 函数更新
         patch(oldVnode, newVnode, container);
         j++;
@@ -140,7 +142,7 @@
       newVnode = newChildren[newEnd];
 
       // while 循环向前遍历，直到遇到拥有不同 key 值的节点为止
-      while (oldVnode.key === newVnode.key) {
+      while (oldEnd > 0 && newEnd > 0 && oldVnode.key === newVnode.key) {
         // 调用 patch 函数更新
         patch(oldVnode, newVnode, container);
         oldEnd--;
@@ -169,6 +171,7 @@
         // 构造 source 数组
         // 新的一组子节点中剩余未处理节点的数量
         const count = newEnd - j + 1;
+        if (count <= 0) return;
         const source = new Array(count);
         source.fill(-1);
 
@@ -316,8 +319,24 @@
         } else {
           patchChildren(oldVnode, vnode, container);
         }
-        // type是对象 --> 有状态组件
-        // type是函数 --> 函数式组件
+      } else if (typeof type === "object" && type._isTelePort) {
+        // 组件选项中如果存在 _isTeleport 标识，则它是 Teleport 组件
+        // 调用Teleport 组件选项中的 process 函数将控制权交接出去
+        // 传递给 process 函数的第五个参数是渲染器的一些内部方法
+        type.process(oldVnode, vnode, container, anchor, {
+          patch,
+          patchChildren,
+          // 用来移动被 Teleport 的内容
+          move(vnode, container, anchor) {
+            insert(
+              vnode.component
+                ? vnode.component.subTree.el //移动一个组件
+                : vnode.el, //移动普通元素
+              container,
+              anchor
+            );
+          },
+        });
       } else if (typeof type === "object" || typeof type === "function") {
         //组件
         if (!oldVnode) {
@@ -957,54 +976,79 @@
     },
   };
 
-  //----------------------------------------- 测试案例 -----------------------------------------------
-  /**
-   * keepAlive组件可以避免一个组件被频繁地销毁/重建。
-   * keepAlilve的本质是缓存管理，再加上特殊的挂载/卸载逻辑
-   * “卸载” 一个被KeepAlive的组件，它不会真的被卸载，而会被移动到一个隐藏容器中。
-   * 当重新 “挂载” 该组件时，它也不会被真的挂载，而会被从隐藏容器中取出，再放回原来的容器中，即页面中。
-   */
-
-  const MyComponent = {
-    name: "MyComponent",
-    props: {
-      title: String,
-    },
-    setup(props, { emit, slots }) {
-      const counter = ref(0);
-
-      return () => {
-        return {
-          type: "button",
-          props: {
-            onClick() {
-              counter.value++;
-            },
-          },
-          children: `count is ${counter.value}`,
-        };
-      };
+  // Teleport 组件并非普通组件，它有特殊的选项 _isTeleport 和 process
+  const Teleport = {
+    _isTelePort: true,
+    process(oldVnode, vnode, container, anchor, internals) {
+      const { patch, patchChildren, move } = internals;
+      if (!oldVnode) {
+        // 挂载
+        // 获取真正的挂载点
+        const target =
+          typeof vnode.props.to === "string"
+            ? document.querySelector(vnode.props.to)
+            : vnode.props.to;
+        // 将 vnode.children 渲染到指定挂载点即可
+        vnode.children.forEach((c) => patch(null, c, target, anchor));
+      } else {
+        // 更新
+        patchChildren(oldVnode, vnode, container);
+        // 如果新旧 to 参数的值不同，则需要对内容进行移动
+        if (vnode.props.to !== oldVnode.props.to) {
+          // 获取新的容器
+          const newTarget =
+            typeof vnode.props.to === "string"
+              ? document.querySelector(vnode.props.to)
+              : vnode.props.to;
+          // 移动到新的容器
+          vnode.children.forEach((c) => move(c, newTarget));
+        }
+      }
     },
   };
+  //----------------------------------------- 测试案例 -----------------------------------------------
+  /**
+   * Teleport组件，该组件可以将指定内容渲染到特定容器中，而不受DOM层级的限制。
+   *
+   * <template>
+   *   <Teleport to = "body">
+   *      <div class="overlay">内容</div>
+   *   </Teleport>
+   * </template>
+   *
+   * 我们通过组件选项的 _isTeleport 标识来判断该组件是否是TelePort组件。如果是，则直接调用组件选项中定义的 process 函数
+   * 将渲染控制权完全交接出去，这样就实现了渲染逻辑的分离。
+   */
 
   const CompVNode = {
-    type: KeepAlive,
+    type: Teleport,
     props: {
-      exclude: /^notMy/,
+      to: "body",
     },
-    children: {
-      default() {
-        return { type: MyComponent };
-      },
-    },
+    // 以普通 childern 的形式代表被 TelePort 的内容
+    children: [
+      { type: "h1", children: "Header" },
+      { type: "p", children: "content" },
+    ],
   };
   renderer.render(CompVNode, document.querySelector("#app"));
 
-  setTimeout(() => {
-    renderer.render(null, document.querySelector("#app"));
-  }, 3000);
+  // setTimeout(() => {
+  //   renderer.render(null, document.querySelector('#app'))
+  // }, 1000);
+
+  const CompVNode2 = {
+    type: Teleport,
+    props: {
+      to: "#container",
+    },
+    children: [
+      { type: "h1", children: "A big Title" },
+      { type: "p", children: "a small content" },
+    ],
+  };
 
   setTimeout(() => {
-    renderer.render(CompVNode, document.querySelector("#app"));
-  }, 5000);
+    renderer.render(CompVNode2, document.querySelector("#app"));
+  }, 1000);
 </script>
