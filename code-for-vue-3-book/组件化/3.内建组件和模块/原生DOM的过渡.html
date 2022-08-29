@@ -1,0 +1,102 @@
+<button onclick="enterMethod()">添加元素 (进场动效)</button>
+<button onclick="removeMethod()">卸载元素 (离场动效)</button>
+<div id="app"></div>
+
+<script>
+  const container = document.querySelector("#app");
+  const el = document.createElement("div");
+  el.classList.add("box");
+
+  function enterMethod() {
+    // 在 DOM 元素被添加到页面之前，将初始状态和运动过程定义到元素上
+    el.classList.add("enter-from");
+    el.classList.add("enter-active");
+
+    // 将元素添加到页面上
+    container.appendChild(el);
+
+    // 在下一帧切换元素的状态
+    // 嵌套调用 requestAnimationFrame
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // 切换元素的状态
+        el.classList.remove("enter-from");
+        el.classList.add("enter-to");
+
+        // 监听 transitionend 事件完成收尾工作, 删除 enter-to 和 enter-active
+        el.addEventListener("transitionend", () => {
+          el.classList.remove("enter-to");
+          el.classList.remove("enter-active");
+        });
+      });
+    });
+  }
+
+  function removeMethod() {
+    // 将卸载动作封装到 performRemove 函数中
+    const performRemove = () => el.parentNode.removeChild(el);
+
+    // 设置离开时的初始状态，添加 leave-from 和 leave-active 类
+    el.classList.add("leave-from");
+    el.classList.add("leave-active");
+
+    // 在下一帧切换状态
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // 切换到结束状态
+        el.classList.remove("leave-from");
+        el.classList.add("leave-to");
+
+        el.addEventListener("transitionend", () => {
+          el.classList.remove("leave-to");
+          el.classList.remove("leave-active");
+          // 当过渡完成后，记得调用 performRemove 函数将 DOM 元素移除
+          performRemove();
+        });
+      });
+    });
+  }
+
+  /**
+   * 1. 进场过渡的实现原理：
+   * beforeEnter阶段：从创建DOM完成后，到把DOM元素添加到body前。（添加 enter-from 和 enter-active 类）
+   * enter阶段：在把DOM元素添加到body之后。（在下一帧中移除 enter-from 类，添加 enter-to类）
+   * 进场动效结束：移除 enter-to 和 enter-active类
+   *
+   **/
+</script>
+
+<style>
+  .box {
+    width: 100px;
+    height: 100px;
+    background-color: red;
+  }
+
+  /* 初始状态 */
+  .enter-from {
+    transform: translateX(200px);
+  }
+
+  /* 结束状态 */
+  .enter-to {
+    transform: translateX(0px);
+  }
+
+  /* 过渡状态 */
+  .enter-active {
+    transition: transform 1s ease-in-out;
+  }
+
+  .leave-from {
+    transform: translateX(0px);
+  }
+
+  .leave-to {
+    transform: translateX(400px);
+  }
+
+  .leave-active {
+    transition: transform 1s ease-in;
+  }
+</style>
