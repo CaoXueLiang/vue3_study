@@ -13,7 +13,7 @@
     el.classList.add("enter-active");
 
     // 将元素添加到页面上
-    container.appendChild(el);
+    container && container.appendChild(el);
 
     // 在下一帧切换元素的状态
     // 嵌套调用 requestAnimationFrame
@@ -34,7 +34,7 @@
 
   function removeMethod() {
     // 将卸载动作封装到 performRemove 函数中
-    const performRemove = () => el.parentNode.removeChild(el);
+    const performRemove = () => el.parentNode && el.parentNode.removeChild(el);
 
     // 设置离开时的初始状态，添加 leave-from 和 leave-active 类
     el.classList.add("leave-from");
