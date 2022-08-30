@@ -1120,20 +1120,12 @@
   const App = {
     name: "App",
     setup() {
-      const toggle = ref(true);
-
-      setTimeout(() => {
-        toggle.value = false;
-      }, 2000);
-
       return () => {
         return {
           type: Transition,
           children: {
             default() {
-              return toggle.value
-                ? { type: "div", props: { class: "box" } }
-                : { type: Text, chidlren: "" };
+              return { type: "div", props: { class: "box" } };
             },
           },
         };
@@ -1141,6 +1133,11 @@
     },
   };
   renderer.render({ type: App }, document.querySelector("#app"));
+
+  // 卸载
+  setTimeout(() => {
+    renderer.render(null, document.querySelector("#app"));
+  }, 3000);
 </script>
 
 <style>
