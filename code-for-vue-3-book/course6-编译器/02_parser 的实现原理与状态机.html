@@ -1,6 +1,41 @@
 <script>
   const template = `<div><p>Vue</p><p>Template</p></div>`;
 
+  // 我们可以将这段模板对应的 AST 设计为:
+  const ast = {
+    // AST 的逻辑根节点
+    type: "Root",
+    children: [
+      // 模板的 div 根节点
+      {
+        type: "Element",
+        tag: "div",
+        children: [
+          {
+            type: "Element",
+            tag: "p",
+            children: [
+              {
+                type: "Text",
+                content: "Vue",
+              },
+            ],
+          },
+          {
+            type: "Element",
+            tag: "p",
+            children: [
+              {
+                type: "Text",
+                content: "Templage",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
   const State = {
     initial: 1,
     tagOpen: 2,
@@ -97,4 +132,33 @@
   }
 
   console.log(tokenize(template));
+
+  // 扫描tokens构建 AST
+  function parse(str) {
+    const tokens = tokenize(str);
+    const root = { type: "Root", children: [] };
+    const elementStack = [root];
+    while (tokens.length) {
+      const parent = elementStack[elementStack.length - 1];
+      const t = tokens[0];
+      switch (t.type) {
+        case "tag":
+          const tag = { type: "Element", tag: t.name, children: [] };
+          parent.children.push(tag);
+          elementStack.push(tag);
+          break;
+        case "text":
+          const text = { type: "Text", content: t.content };
+          parent.children.push(text);
+          break;
+        case "tagEnd":
+          elementStack.pop();
+          break;
+      }
+      tokens.shift();
+    }
+    return root;
+  }
+  const ast1 = parse(template);
+  console.log("--ast1---", ast1);
 </script>
