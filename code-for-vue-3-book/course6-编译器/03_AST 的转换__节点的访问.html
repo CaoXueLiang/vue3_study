@@ -1,0 +1,255 @@
+<script>
+  const template = `<div><p>Vue</p><p>Template</p></div>`;
+
+  // 我们可以将这段模板对应的 AST 设计为:
+  const ast = {
+    // AST 的逻辑根节点
+    type: "Root",
+    children: [
+      // 模板的 div 根节点
+      {
+        type: "Element",
+        tag: "div",
+        children: [
+          {
+            type: "Element",
+            tag: "p",
+            children: [
+              {
+                type: "Text",
+                content: "Vue",
+              },
+            ],
+          },
+          {
+            type: "Element",
+            tag: "p",
+            children: [
+              {
+                type: "Text",
+                content: "Templage",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  const State = {
+    initial: 1,
+    tagOpen: 2,
+    tagName: 3,
+    text: 4,
+    tagEnd: 5,
+    tagEndName: 6,
+  };
+
+  function isAlpha(char) {
+    return (char >= "a" && char <= "z") || (char >= "A" && char <= "Z");
+  }
+
+  function tokenize(str) {
+    let currentState = State.initial;
+    const chars = [];
+    const tokens = [];
+    while (str) {
+      const char = str[0];
+      switch (currentState) {
+        case State.initial:
+          if (char === "<") {
+            currentState = State.tagOpen;
+            str = str.slice(1);
+          } else if (isAlpha(char)) {
+            currentState = State.text;
+            chars.push(char);
+            str = str.slice(1);
+          }
+          break;
+        case State.tagOpen:
+          if (isAlpha(char)) {
+            currentState = State.tagName;
+            chars.push(char);
+            str = str.slice(1);
+          } else if (char === "/") {
+            currentState = State.tagEnd;
+            str = str.slice(1);
+          }
+          break;
+        case State.tagName:
+          if (isAlpha(char)) {
+            chars.push(char);
+            str = str.slice(1);
+          } else if (char === ">") {
+            currentState = State.initial;
+            tokens.push({
+              type: "tag",
+              name: chars.join(""),
+            });
+            chars.length = 0;
+            str = str.slice(1);
+          }
+          break;
+        case State.text:
+          if (isAlpha(char)) {
+            chars.push(char);
+            str = str.slice(1);
+          } else if (char === "<") {
+            currentState = State.tagOpen;
+            tokens.push({
+              type: "text",
+              content: chars.join(""),
+            });
+            chars.length = 0;
+            str = str.slice(1);
+          }
+          break;
+        case State.tagEnd:
+          if (isAlpha(char)) {
+            currentState = State.tagEndName;
+            chars.push(char);
+            str = str.slice(1);
+          }
+          break;
+        case State.tagEndName:
+          if (isAlpha(char)) {
+            chars.push(char);
+            str = str.slice(1);
+          } else if (char === ">") {
+            currentState = State.initial;
+            tokens.push({
+              type: "tagEnd",
+              name: chars.join(""),
+            });
+            chars.length = 0;
+            str = str.slice(1);
+          }
+          break;
+      }
+    }
+
+    return tokens;
+  }
+
+  // 扫描tokens构建 AST
+  function parse(str) {
+    const tokens = tokenize(str);
+    const root = { type: "Root", children: [] };
+    const elementStack = [root];
+    while (tokens.length) {
+      const parent = elementStack[elementStack.length - 1];
+      const t = tokens[0];
+      switch (t.type) {
+        case "tag":
+          const tag = { type: "Element", tag: t.name, children: [] };
+          parent.children.push(tag);
+          elementStack.push(tag);
+          break;
+        case "text":
+          const text = { type: "Text", content: t.content };
+          parent.children.push(text);
+          break;
+        case "tagEnd":
+          elementStack.pop();
+          break;
+      }
+      tokens.shift();
+    }
+    return root;
+  }
+
+  /**
+   * 为了对 AST 进行转换，我们需要能访问AST的每一个节点，这样才有机会对特定节点进行修改、替换、删除等操作。
+   * 由于 AST 是树型数据结构，所以我们需要编写一个深度优先的遍历算法。
+   **/
+
+  // 工具函数，用来打印当前 AST 中节点的信息
+  function dump(node, indent = 0) {
+    const type = node.type;
+    // 节点描述
+    let des = "";
+    if (type === "Root") {
+      dec = "";
+    } else if (type === "Element") {
+      des = node.tag;
+    } else if (type === "Text") {
+      des = node.content;
+    }
+    // 打印节点类型和描述信息
+    console.log(`${"-".repeat(indent)}${type}: ${des}`);
+    //递归的打印子节点
+    if (node.children) {
+      node.children.forEach((n) => dump(n, indent + 2));
+    }
+  }
+
+  /**
+   function traverseNode(ast) {
+    // 当前节点，开始时ast就是 Root节点
+    const currentNode = ast;
+
+    // 对当前节点进行操作,将所有的p标签转化为h1标签
+    if (currentNode.type === "Element" && currentNode.tag === "p") {
+      currentNode.tag = "h1";
+    }
+
+    // 将文本节点的内容重复两次
+    if (currentNode.type === "Text") {
+      currentNode.content = currentNode.content.repeat(2);
+    }
+
+    const children = currentNode.children;
+    if (children) {
+      for (let index = 0; index < children.length; index++) {
+        traverseNode(children[index]);
+      }
+    }
+  }
+  **/
+
+  function traverseNode(ast, context) {
+    // 当前节点，开始时ast就是 Root节点
+    const currentNode = ast;
+
+    // context.nodeTransforms 是一个数组，其中每一个元素都是一个函数
+    const transforms = context.nodeTransforms;
+    for (let i = 0; i < transforms.length; i++) {
+      // 将当前节点 currentNode和 context 都传递给 nodeTransforms 中注册的回调函数
+      transforms[i](currentNode, context);
+    }
+
+    const children = currentNode.children;
+    if (children) {
+      for (let i = 0; i < children.length; i++) {
+        traverseNode(children[i], context);
+      }
+    }
+  }
+
+  function transformElement(node) {
+    if (node.type === "Element" && node.tag === "p") {
+      node.tag = "h1";
+    }
+  }
+
+  function transformText(node) {
+    if (node.type === "Text") {
+      node.content = node.content.repeat(2);
+    }
+  }
+
+  // 封装 transform 函数，用来对AST进行转换
+  function transform(ast) {
+    // 在transform 函数内创建 context 对象
+    const context = {
+      nodeTransforms: [transformElement, transformText],
+    };
+    traverseNode(ast, context);
+  }
+
+  const ast1 = parse(template);
+  console.log("--ast1---", ast1);
+  dump(ast1);
+  transform(ast1);
+  dump(ast1);
+</script>
