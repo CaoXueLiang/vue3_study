@@ -149,17 +149,16 @@
   }
 
   function traverseNode(ast, context) {
-    // 当前节点，开始时ast就是 Root节点
     context.currentNode = ast;
 
-    // context.nodeTransforms 是一个数组，其中每一个元素都是一个函数
+    // 退出阶段的回调函数数组
+    const exitFns = [];
     const transforms = context.nodeTransforms;
     for (let i = 0; i < transforms.length; i++) {
-      // 将当前节点 currentNode和 context 都传递给 nodeTransforms 中注册的回调函数
-      transforms[i](context.currentNode, context);
-
-      // 由于任何转换函数都可能移除当前节点，因此每个转换函数执行完毕后
-      // 都应该检查当前节点是否已经被移除，如果移除了直接返回即可
+      const onExit = transforms[i](context.currentNode, context);
+      if (onExit) {
+        exitFns.push(onExit);
+      }
       if (!context.currentNode) {
         return;
       }
@@ -173,27 +172,44 @@
         traverseNode(children[i], context);
       }
     }
+
+    let i = exitFns.length;
+    while (i--) {
+      exitFns[i]();
+    }
   }
 
+  // 当把转换逻辑编写在转换函数退出阶段时，
+  // 不仅能保证所有子节点全部处理完毕，还能够保证所有后续注册的转换函数执行完毕
   function transformElement(node) {
-    if (node.type === "Element" && node.tag === "p") {
-      node.tag = "h1";
-    }
+    console.log(`进入： ${JSON.stringify(node)}`);
+    return () => {
+      console.log(`退出： ${JSON.stringify(node)}`);
+      if (node.type === "Element" && node.tag === "p") {
+        node.tag = "h1";
+      }
+    };
   }
 
   function transformText(node, context) {
-    if (node.type === "Text") {
-      context.replaceNode({
-        type: "Element",
-        tag: "span",
-      });
-    }
+    return () => {
+      // 编写退出逻辑
+      if (node.type === "Text") {
+        context.replaceNode({
+          type: "Element",
+          tag: "span",
+        });
+      }
+    };
   }
 
   function transformDeleteSpan(node, context) {
     if (node.type === "Element" && node.tag === "span") {
       // context.removeNode();
     }
+    return () => {
+      // 编写退出逻辑
+    };
   }
 
   // 封装 transform 函数，用来对AST进行转换
