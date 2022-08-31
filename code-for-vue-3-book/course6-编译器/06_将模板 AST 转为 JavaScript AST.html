@@ -1,0 +1,242 @@
+<script>
+  const template = `<div><p>Vue</p><p>Template</p></div>`;
+
+  const State = {
+    initial: 1,
+    tagOpen: 2,
+    tagName: 3,
+    text: 4,
+    tagEnd: 5,
+    tagEndName: 6,
+  };
+
+  function isAlpha(char) {
+    return (char >= "a" && char <= "z") || (char >= "A" && char <= "Z");
+  }
+
+  function tokenize(str) {
+    let currentState = State.initial;
+    const chars = [];
+    const tokens = [];
+    while (str) {
+      const char = str[0];
+      switch (currentState) {
+        case State.initial:
+          if (char === "<") {
+            currentState = State.tagOpen;
+            str = str.slice(1);
+          } else if (isAlpha(char)) {
+            currentState = State.text;
+            chars.push(char);
+            str = str.slice(1);
+          }
+          break;
+        case State.tagOpen:
+          if (isAlpha(char)) {
+            currentState = State.tagName;
+            chars.push(char);
+            str = str.slice(1);
+          } else if (char === "/") {
+            currentState = State.tagEnd;
+            str = str.slice(1);
+          }
+          break;
+        case State.tagName:
+          if (isAlpha(char)) {
+            chars.push(char);
+            str = str.slice(1);
+          } else if (char === ">") {
+            currentState = State.initial;
+            tokens.push({
+              type: "tag",
+              name: chars.join(""),
+            });
+            chars.length = 0;
+            str = str.slice(1);
+          }
+          break;
+        case State.text:
+          if (isAlpha(char)) {
+            chars.push(char);
+            str = str.slice(1);
+          } else if (char === "<") {
+            currentState = State.tagOpen;
+            tokens.push({
+              type: "text",
+              content: chars.join(""),
+            });
+            chars.length = 0;
+            str = str.slice(1);
+          }
+          break;
+        case State.tagEnd:
+          if (isAlpha(char)) {
+            currentState = State.tagEndName;
+            chars.push(char);
+            str = str.slice(1);
+          }
+          break;
+        case State.tagEndName:
+          if (isAlpha(char)) {
+            chars.push(char);
+            str = str.slice(1);
+          } else if (char === ">") {
+            currentState = State.initial;
+            tokens.push({
+              type: "tagEnd",
+              name: chars.join(""),
+            });
+            chars.length = 0;
+            str = str.slice(1);
+          }
+          break;
+      }
+    }
+
+    return tokens;
+  }
+
+  // 扫描tokens构建 AST
+  function parse(str) {
+    const tokens = tokenize(str);
+    const root = { type: "Root", children: [] };
+    const elementStack = [root];
+    while (tokens.length) {
+      const parent = elementStack[elementStack.length - 1];
+      const t = tokens[0];
+      switch (t.type) {
+        case "tag":
+          const tag = { type: "Element", tag: t.name, children: [] };
+          parent.children.push(tag);
+          elementStack.push(tag);
+          break;
+        case "text":
+          const text = { type: "Text", content: t.content };
+          parent.children.push(text);
+          break;
+        case "tagEnd":
+          elementStack.pop();
+          break;
+      }
+      tokens.shift();
+    }
+    return root;
+  }
+
+  /**
+   * 为了对 AST 进行转换，我们需要能访问AST的每一个节点，这样才有机会对特定节点进行修改、替换、删除等操作。
+   * 由于 AST 是树型数据结构，所以我们需要编写一个深度优先的遍历算法。
+   **/
+
+  // 工具函数，用来打印当前 AST 中节点的信息
+  function dump(node, indent = 0) {
+    const type = node.type;
+    // 节点描述
+    let des = "";
+    if (type === "Root") {
+      dec = "";
+    } else if (type === "Element") {
+      des = node.tag;
+    } else if (type === "Text") {
+      des = node.content;
+    }
+    // 打印节点类型和描述信息
+    console.log(`${"-".repeat(indent)}${type}: ${des}`);
+    //递归的打印子节点
+    if (node.children) {
+      node.children.forEach((n) => dump(n, indent + 2));
+    }
+  }
+
+  function traverseNode(ast, context) {
+    context.currentNode = ast;
+
+    // 退出阶段的回调函数数组
+    const exitFns = [];
+    const transforms = context.nodeTransforms;
+    for (let i = 0; i < transforms.length; i++) {
+      const onExit = transforms[i](context.currentNode, context);
+      if (onExit) {
+        exitFns.push(onExit);
+      }
+      if (!context.currentNode) {
+        return;
+      }
+    }
+
+    const children = context.currentNode.children;
+    if (children) {
+      for (let i = 0; i < children.length; i++) {
+        context.parent = context.currentNode;
+        context.childIndex = i;
+        traverseNode(children[i], context);
+      }
+    }
+
+    let i = exitFns.length;
+    while (i--) {
+      exitFns[i]();
+    }
+  }
+
+  // 当把转换逻辑编写在转换函数退出阶段时，
+  // 不仅能保证所有子节点全部处理完毕，还能够保证所有后续注册的转换函数执行完毕
+  function transformElement(node) {
+    console.log(`进入： ${JSON.stringify(node)}`);
+    return () => {
+      console.log(`退出： ${JSON.stringify(node)}`);
+      if (node.type === "Element" && node.tag === "p") {
+        node.tag = "h1";
+      }
+    };
+  }
+
+  function transformText(node, context) {
+    return () => {
+      // 编写退出逻辑
+      if (node.type === "Text") {
+        context.replaceNode({
+          type: "Element",
+          tag: "span",
+        });
+      }
+    };
+  }
+
+  function transformDeleteSpan(node, context) {
+    if (node.type === "Element" && node.tag === "span") {
+      // context.removeNode();
+    }
+    return () => {
+      // 编写退出逻辑
+    };
+  }
+
+  // 封装 transform 函数，用来对AST进行转换
+  function transform(ast) {
+    // 在transform 函数内创建 context 对象
+    const context = {
+      currentNode: null, //当前正在转换的节点
+      childIndex: 0, // 当前节点在父节点 children 中的位置索引
+      parent: null, //当前节点的父节点
+      replaceNode(node) {
+        context.parent.children[context.childIndex] = node;
+        context.currentNode = node;
+      },
+      removeNode() {
+        if (context.parent) {
+          context.parent.children.splice(context.childIndex, 1);
+          context.currentNode = null;
+        }
+      },
+      nodeTransforms: [transformElement, transformText, transformDeleteSpan],
+    };
+    traverseNode(ast, context);
+  }
+
+  const ast1 = parse(template);
+  console.log("--ast1---", ast1);
+  dump(ast1);
+  transform(ast1);
+  dump(ast1);
+</script>
