@@ -400,7 +400,7 @@
   }
 
   function compile(template) {
-    // 模板AST
+    // 将组件模板转化为模板AST
     const ast = parse(template);
     // 将模板AST 转化为 JavaScript AST
     transform(ast);
