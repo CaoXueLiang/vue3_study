@@ -1,0 +1,117 @@
+<script>
+  // 在编译器生成的`渲染函数`代码中，并不会直接包含用来描述虚拟节点的数据结构
+  // 而是包含着用来创建虚拟DOM节点的辅助函数
+  function render() {
+    // 1. 使用 createBlock 代替 createVNode 来创建block
+    // 2. 每当调用 createBlock 之前，先调用 openBlock
+    // 实际上，除了模板中的根节点需要 Block 角色之外，
+    // 任何带有v-for,v-if/v-else-if/v-else 等指令的节点，都需要作为 Block 节点
+    return (
+      openBlock(),
+      createBlock("div", null, [
+        createVNode("p", { class: "foo" }, null, 1 /*patch flag*/),
+        createVNode("div", { class: "bar" }, null),
+        createVNode("span", { class: "spanClass" }, [
+          createVNode("span", { id: "label_1" }, "spanLabel1", 1),
+          createVNode("span", { id: "label_2" }, "spanLabel2"),
+        ]),
+      ])
+    );
+  }
+
+  // 为了让外层 Block 节点能够收集到内层动态节点，就需要一个栈结构的数据来临时存储内层的动态节点
+  // 动态节点栈
+  const dynamicChildrenStack = [];
+  // 当前动态节点集合
+  let currentDynamicChildren = null;
+
+  // openBlock 用来创建一个新的动态节点集合，并将该集合压入栈中
+  function openBlock() {
+    dynamicChildrenStack.push((currentDynamicChildren = []));
+  }
+
+  // closeBlock 用来将通过 openBlock 创建的动态节点集合从栈中弹出
+  function closeBlock() {
+    currentDynamicChildren = dynamicChildrenStack.pop();
+  }
+
+  function createBlock(tag, props, children) {
+    // block 本质上也是一个 vnode，但与普通虚拟节点相比，会多出一个 dynamicChildren 数组
+    const block = createVNode(tag, props, children);
+    // 将当前动态节点集合作为 block.dynamicChildren (1个block对应一个 dynamicChildren)
+    block.dynamicChildren = currentDynamicChildren;
+    // 关闭 block
+    closeBlock();
+    return block;
+  }
+
+  function createVNode(tag, props, children, flags) {
+    const key = props && props.key;
+    props && delete props.key;
+    const vnode = {
+      tag,
+      props,
+      children,
+      key,
+      patchFlags: flags,
+    };
+
+    if (typeof flags !== "undefined" && currentDynamicChildren) {
+      // 动态节点，将其添加到当前动态节点集合中
+      currentDynamicChildren.push(vnode);
+    }
+
+    return vnode;
+  }
+
+  function patchElement(oldVnode, vnode) {
+    const el = (vnode.el = oldVnode.el);
+    const oldProps = oldVnode.props;
+    const newProps = vnode.props;
+
+    //.........
+
+    // 对于单个动态节点的更新来说，由于它存在对应的补丁标志，因此我们可以针对性地完成 props 的靶向更新
+    // 这样就避免了全量的 props 更新，从而最大的提升性能
+    if (vnode.patchFlags) {
+      // 靶向更新
+      if (vnode.patchFlags === 1) {
+        // 只需要更新 class
+      } else if (vnode.patchFlags === 2) {
+        // 只需要更新 style
+      } else {
+        // ....
+      }
+    } else {
+      //全量更新
+      for (const key in newProps) {
+        if (newProps[key] !== oldProps[key]) {
+          patchProps(el, key, oldProps[key], newProps[key]);
+        }
+      }
+
+      for (const key in oldProps) {
+        if (!(key in newProps)) {
+          patchProps(el, key, oldProps[key], null);
+        }
+      }
+    }
+
+    if (vnode.dynamicChildren) {
+      // 调用 patchBlockChildren 函数，这样只会更新动态节点，而跳过所有静态节点
+      patchBlockChildren(oldVnode, vnode);
+    } else {
+      // 更新标签的子节点，使用传统虚拟DOM的 Diff算法进行更新
+      patchChildren(oldVnode, vnode);
+    }
+  }
+
+  function patchBlockChildren(oldVnode, vnode) {
+    for (let i = 0; i < array.length; i++) {
+      // 只更新动态节点即可
+      patchElement(oldVnode.dynamicChildren[i], vnode.dynamicChildren[i]);
+    }
+  }
+
+  console.log(render());
+</script>
